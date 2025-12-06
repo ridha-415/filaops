@@ -29,26 +29,26 @@ FilaOps is an open-source ERP system designed specifically for 3D print farms. I
 - **Squarespace** - Retail order sync (coming soon)
 - **QuickBooks** - Accounting integration (coming soon)
 
-## FilaOps Pro & Enterprise
+## FilaOps Pro & Enterprise (Coming Q2 2026)
 
-Want the full production-ready experience? We offer hosted solutions with premium features:
+We're building hosted solutions with premium features. Star/watch this repo to get notified when they launch.
 
 | Feature | Open Source | Pro | Enterprise |
 |---------|:-----------:|:---:|:----------:|
 | Core ERP (Products, BOMs, Orders) | Yes | Yes | Yes |
 | Inventory & MRP | Yes | Yes | Yes |
 | Serial/Lot Traceability | Yes | Yes | Yes |
-| **Customer Quote Portal** | - | Yes | Yes |
-| **Multicolor/Multi-Material Quoting** | - | Yes | Yes |
-| **B2B Partner Portal** | - | Yes | Yes |
-| Squarespace/QuickBooks Sync | - | Yes | Yes |
-| **ML Print Time Estimation** | - | - | Yes |
-| **Printer Fleet Management** | - | - | Yes |
-| **Live Production Monitoring** | - | - | Yes |
+| **Customer Quote Portal** | - | Soon | Soon |
+| **Multicolor/Multi-Material Quoting** | - | Soon | Soon |
+| **B2B Partner Portal** | - | Soon | Soon |
+| Squarespace/QuickBooks Sync | - | Soon | Soon |
+| **ML Print Time Estimation** | - | - | Soon |
+| **Printer Fleet Management** | - | - | Soon |
+| **Live Production Monitoring** | - | - | Soon |
 
-**Multicolor quoting** automatically calculates costs for AMS/multi-filament prints with accurate material usage per color.
+**Multicolor quoting** will automatically calculate costs for AMS/multi-filament prints with accurate material usage per color.
 
-Interested? [Contact us](mailto:hello@blb3dprinting.com) or watch this repo for updates.
+Questions? [Contact us](mailto:hello@blb3dprinting.com) or open a [Discussion](https://github.com/Blb3D/filaops/discussions).
 
 ## Quick Start
 
