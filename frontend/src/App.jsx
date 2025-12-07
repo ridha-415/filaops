@@ -13,6 +13,7 @@ import AdminProduction from "./pages/admin/AdminProduction";
 import AdminShipping from "./pages/admin/AdminShipping";
 import AdminManufacturing from "./pages/admin/AdminManufacturing";
 import AdminPasswordResetApproval from "./pages/admin/AdminPasswordResetApproval";
+import AdminCustomers from "./pages/admin/AdminCustomers";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
           <Route path="orders" element={<AdminOrders />} />
+          <Route path="customers" element={<AdminCustomers />} />
           <Route path="bom" element={<AdminBOM />} />
           <Route path="products" element={<AdminProducts />} />
           <Route path="items" element={<AdminItems />} />

@@ -131,7 +131,7 @@ function PurchaseRequestModal({ line, onClose, token, onSuccess }) {
         </p>
         <div className="flex gap-2 justify-center">
           <button
-            onClick={() => window.location.href = '/admin?tab=purchasing'}
+            onClick={() => window.location.href = '/admin/purchasing'}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             View in Purchasing

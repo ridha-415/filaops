@@ -6,8 +6,8 @@
 
 ## Last Updated
 
-**Date:** December 5, 2025 (Session 4)
-**Session Summary:** FilaOps public repo live on GitHub with clean history
+**Date:** December 7, 2025 (Session 6)
+**Session Summary:** Customer Management module, overhead calculator, Git workflow docs
 
 ---
 
@@ -45,30 +45,44 @@ C:\Users\brand\OneDrive\Documents\bambu-print-suite → ML Dashboard (port 8001)
 
 ## WHAT WAS COMPLETED THIS SESSION
 
-### GitHub Public Repo Live (Dec 5, 2025 - Session 4)
+### Customer Management & Manufacturing Tools (Dec 7, 2025 - Session 6)
 
-**Repository:** https://github.com/Blb3D/filaops
+**New Features:**
 
-**Fresh Start (Clean History):**
+1. **Customer Management Module** - Full CRUD for customer records
+   - Backend: `backend/app/api/v1/endpoints/admin/customers.py`
+   - Frontend: `frontend/src/pages/admin/AdminCustomers.jsx`
+   - Auto-generated customer numbers (CUST-001, CUST-002, etc.)
+   - Customer details modal with order history
+   - Search functionality for dropdowns
 
-- Deleted old repo with sensitive data in history
-- Created new repo with single clean initial commit
-- No data_migration folder, invoices, PDFs, or screenshots in history
-- No Stripe test keys in history
+2. **Overhead Rate Calculator** - In Work Center modal
+   - Added to `AdminManufacturing.jsx` Work Center modal
+   - Calculates: Depreciation + Electricity + Maintenance = Hourly rate
+   - "Apply Rate" button populates work center overhead_rate_per_hour
 
-**README Updated:**
+3. **Printer Cost Calculator Documentation**
+   - `docs/PRINTER_COST_CALCULATOR.md`
+   - Intentionally "skewed" public numbers (protects competitive advantage)
+   - Real: ~$0.09/hr | Published: ~$0.125/hr
 
-- Added Pro & Enterprise tier promotion table
-- Highlighted multicolor/multi-material quoting (Pro)
-- Highlighted ML print time estimation (Enterprise)
-- Fixed all GitHub URLs to Blb3D/filaops
+**Bug Fixes:**
 
-**LICENSE:** User adding BSL 1.1 via GitHub web UI
-- Licensor: Brandan Baker DBA BLB3D Printing
-- Change Date: December 5, 2029 → Apache 2.0
+- **Customer grid not displaying** - API returns array directly, frontend expected wrapped object
+  - Fixed in `AdminCustomers.jsx`: `setCustomers(Array.isArray(data) ? data : [])`
+
+**Documentation:**
+
+- **CONTRIBUTING.md** - Enhanced with detailed Git workflow
+  - Branch naming conventions (feature/, fix/, docs/)
+  - Commit message format (conventional commits)
+  - Step-by-step workflow for features
+  - Quick commit guide for same-day work
 
 ### Previous Sessions
 
+- Session 5: Documentation overhaul, fresh_database_setup.py
+- Session 4: GitHub public repo live, clean history
 - Session 3: FilaOps rebrand, SAAS_TIERING_PLAN.md
 - Session 2: Security audit, .gitignore updates
 - Session 1: Phase 6B traceability, production order modal
@@ -77,30 +91,33 @@ C:\Users\brand\OneDrive\Documents\bambu-print-suite → ML Dashboard (port 8001)
 
 ## WHAT NEEDS TO BE DONE NEXT
 
-### Public Repo - DONE
+### Open Source Polish - IN PROGRESS
 
-1. [x] **Choose repo name** - FilaOps
-2. [x] **Clean repo** - Fresh history, no sensitive data
-3. [x] **Update README.md** - Tier promotion added
-4. [x] **Push to GitHub** - https://github.com/Blb3D/filaops
-5. [x] **Add LICENSE file** - BSL 1.1 added, renamed to LICENSE
+1. [x] **Documentation overhaul** - GETTING_STARTED.md, HOW_IT_WORKS.md
+2. [x] **Fresh database setup script** - `fresh_database_setup.py`
+3. [x] **Customer Management** - Full CRUD module added
+4. [x] **Overhead calculator** - Work center cost calculation tool
+5. [ ] **Test frontend admin UI** - Verify all pages work with fresh database
+6. [ ] **GitHub Issues** - Address open issues (#6-#11)
 
 ### Immediate (This Week)
 
-1. [ ] **Test create production order** - Verify modal works end-to-end in quote-portal admin
-2. [ ] **Add traceability UI** - Admin pages to manage lots, serials, run recall queries
-3. [ ] **Squarespace integration** - Start with order webhook receiver
+1. [ ] **Smart SO Entry Phase 2** - Customer dropdown in Orders page
+2. [ ] **Test full workflow** - Product → BOM → Order → Production → Ship
+3. [ ] **Verify admin UI** - All 12 admin pages working (added Customers)
+4. [ ] **API documentation** - Create ERP_API_REFERENCE.md for core endpoints
 
-### Short Term
+### Short Term (Pro Features - Not Open Source)
 
-1. [ ] QuickBooks integration (OAuth2 flow, invoice sync)
-2. [ ] B2B Partner Portal (pricing tiers, PO-based ordering)
+1. [ ] Squarespace integration (order webhook receiver)
+2. [ ] QuickBooks integration (OAuth2 flow, invoice sync)
 3. [ ] Switch Stripe/EasyPost to production keys
 
 ### Known Issues
 
-- 35 e2e tests skipped (conditional, need specific data states)
-- Some tests reference wrong ports (fixed in latest commit)
+- Port 8000 conflict when testing (production backend running)
+- Need to test fresh install experience on clean machine
+- GitHub Issues #6-#11 need attention (3D viewer, multi-material UX, docs)
 
 ---
 
@@ -127,12 +144,18 @@ C:\Users\brand\OneDrive\Documents\bambu-print-suite → ML Dashboard (port 8001)
 |---------|-----------|
 | Quick AI context | `AI_CONTEXT.md` |
 | This handoff doc | `SESSION_HANDOFF.md` |
+| **New user setup guide** | `GETTING_STARTED.md` |
+| **How the system works** | `HOW_IT_WORKS.md` |
+| **Database setup script** | `scripts/fresh_database_setup.py` |
 | Full architecture | `ARCHITECTURE.md` |
 | Project roadmap | `ROADMAP.md` |
 | ERP main entry | `backend/app/main.py` |
-| Admin UI | `quote-portal/src/pages/admin/` |
+| Admin UI | `frontend/src/pages/admin/` |
+| **Customer API** | `backend/app/api/v1/endpoints/admin/customers.py` |
+| **Customer UI** | `frontend/src/pages/admin/AdminCustomers.jsx` |
 | Production orders API | `backend/app/api/v1/endpoints/production_orders.py` |
 | Traceability API | `backend/app/api/v1/endpoints/admin/traceability.py` |
+| **Cost Calculator Docs** | `docs/PRINTER_COST_CALCULATOR.md` |
 
 ---
 

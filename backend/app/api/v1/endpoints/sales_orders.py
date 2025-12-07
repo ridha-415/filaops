@@ -14,12 +14,15 @@ from sqlalchemy import desc
 from app.db.session import get_db
 from app.models.user import User
 from app.models.quote import Quote
-from app.models.sales_order import SalesOrder
+from app.models.sales_order import SalesOrder, SalesOrderLine
 from app.models.production_order import ProductionOrder
+from app.models.product import Product
 from app.models.bom import BOM
 from app.schemas.sales_order import (
+    SalesOrderCreate,
     SalesOrderConvert,
     SalesOrderResponse,
+    SalesOrderLineResponse,
     SalesOrderListResponse,
     SalesOrderUpdateStatus,
     SalesOrderUpdatePayment,
@@ -27,8 +30,142 @@ from app.schemas.sales_order import (
     SalesOrderCancel,
 )
 from app.api.v1.endpoints.auth import get_current_user
+from app.models.manufacturing import Routing
 
 router = APIRouter(prefix="/sales-orders", tags=["Sales Orders"])
+
+
+# ============================================================================
+# ENDPOINT: Create Manual Sales Order
+# ============================================================================
+
+@router.post("/", response_model=SalesOrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_sales_order(
+    request: SalesOrderCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a manual sales order (line_item type)
+
+    This endpoint creates a line-item based sales order for standard products.
+    Use this for orders from manual entry, Squarespace, WooCommerce, etc.
+
+    For custom quote-based orders, use POST /convert/{quote_id} instead.
+
+    Returns:
+        Sales order with status 'pending'
+    """
+    # Validate all products exist and get their details
+    line_products = []
+    total_price = Decimal("0")
+    total_quantity = 0
+
+    for line in request.lines:
+        product = db.query(Product).filter(Product.id == line.product_id).first()
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product ID {line.product_id} not found"
+            )
+
+        # Use provided price or fall back to product's selling price
+        unit_price = line.unit_price if line.unit_price is not None else (product.selling_price or Decimal("0"))
+        line_total = unit_price * line.quantity
+
+        line_products.append({
+            "product": product,
+            "quantity": line.quantity,
+            "unit_price": unit_price,
+            "line_total": line_total,
+            "notes": line.notes,
+        })
+
+        total_price += line_total
+        total_quantity += line.quantity
+
+    # Generate order number
+    year = datetime.utcnow().year
+    last_order = (
+        db.query(SalesOrder)
+        .filter(SalesOrder.order_number.like(f"SO-{year}-%"))
+        .order_by(desc(SalesOrder.order_number))
+        .first()
+    )
+
+    if last_order:
+        last_num = int(last_order.order_number.split("-")[2])
+        next_num = last_num + 1
+    else:
+        next_num = 1
+
+    order_number = f"SO-{year}-{next_num:03d}"
+
+    # Calculate totals
+    shipping_cost = request.shipping_cost or Decimal("0")
+    tax_amount = Decimal("0")  # TODO: Calculate tax if needed
+    grand_total = total_price + shipping_cost + tax_amount
+
+    # Build product name summary from lines
+    if len(line_products) == 1:
+        product_name = f"{line_products[0]['product'].name} x{line_products[0]['quantity']}"
+    else:
+        product_name = f"{len(line_products)} items"
+
+    # Get first product for material_type fallback
+    first_product = line_products[0]["product"]
+
+    # Create sales order
+    sales_order = SalesOrder(
+        user_id=current_user.id,
+        order_number=order_number,
+        order_type="line_item",
+        source=request.source or "manual",
+        source_order_id=request.source_order_id,
+        product_name=product_name,
+        quantity=total_quantity,
+        material_type=first_product.category or "PLA",  # Use category as material type fallback
+        finish="standard",
+        unit_price=total_price / total_quantity if total_quantity > 0 else Decimal("0"),
+        total_price=total_price,
+        tax_amount=tax_amount,
+        shipping_cost=shipping_cost,
+        grand_total=grand_total,
+        status="pending",
+        payment_status="pending",
+        rush_level="standard",
+        shipping_address_line1=request.shipping_address_line1,
+        shipping_address_line2=request.shipping_address_line2,
+        shipping_city=request.shipping_city,
+        shipping_state=request.shipping_state,
+        shipping_zip=request.shipping_zip,
+        shipping_country=request.shipping_country or "USA",
+        customer_notes=request.customer_notes,
+        internal_notes=request.internal_notes,
+    )
+
+    db.add(sales_order)
+    db.flush()  # Get sales_order.id
+
+    # Create order lines
+    for idx, line_data in enumerate(line_products, start=1):
+        order_line = SalesOrderLine(
+            sales_order_id=sales_order.id,
+            product_id=line_data["product"].id,
+            line_number=idx,
+            quantity=line_data["quantity"],
+            unit_price=line_data["unit_price"],
+            total_price=line_data["line_total"],
+            product_sku=line_data["product"].sku,
+            product_name=line_data["product"].name,
+            notes=line_data["notes"],
+        )
+        db.add(order_line)
+
+    db.commit()
+    db.refresh(sales_order)
+
+    return sales_order
 
 
 # ============================================================================
@@ -497,3 +634,224 @@ async def cancel_sales_order(
     db.refresh(order)
 
     return order
+
+
+# ============================================================================
+# ENDPOINT: Generate Production Orders from Sales Order
+# ============================================================================
+
+@router.post("/{order_id}/generate-production-orders")
+async def generate_production_orders(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate production orders from a sales order.
+
+    For line_item orders: Creates one production order per line item.
+    For quote_based orders: Creates a single production order.
+
+    Requirements:
+    - Sales order must exist
+    - Sales order must not be cancelled
+    - Line items must have valid products
+    - No duplicate production orders (checks existing)
+
+    Returns:
+        List of created production order codes
+    """
+    order = db.query(SalesOrder).filter(SalesOrder.id == order_id).first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sales order not found"
+        )
+
+    if order.status == "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot generate production orders for cancelled sales order"
+        )
+
+    # Check if production orders already exist for this sales order
+    existing_pos = db.query(ProductionOrder).filter(
+        ProductionOrder.sales_order_id == order_id
+    ).all()
+
+    if existing_pos:
+        return {
+            "message": "Production orders already exist",
+            "existing_orders": [po.code for po in existing_pos],
+            "created_orders": []
+        }
+
+    created_orders = []
+    year = datetime.utcnow().year
+
+    # Helper to generate next PO code
+    def get_next_po_code():
+        last_po = (
+            db.query(ProductionOrder)
+            .filter(ProductionOrder.code.like(f"PO-{year}-%"))
+            .order_by(desc(ProductionOrder.code))
+            .first()
+        )
+        if last_po:
+            last_num = int(last_po.code.split("-")[2])
+            next_num = last_num + 1
+        else:
+            next_num = 1
+        return f"PO-{year}-{next_num:04d}"
+
+    if order.order_type == "line_item":
+        # Get all lines for this order
+        lines = db.query(SalesOrderLine).filter(
+            SalesOrderLine.sales_order_id == order_id
+        ).order_by(SalesOrderLine.line_number).all()
+
+        if not lines:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Sales order has no line items"
+            )
+
+        for line in lines:
+            product = db.query(Product).filter(Product.id == line.product_id).first()
+            if not product:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Product ID {line.product_id} not found for line {line.line_number}"
+                )
+
+            # Find BOM for product (first active one)
+            bom = db.query(BOM).filter(
+                BOM.product_id == line.product_id,
+                BOM.active == True
+            ).first()
+
+            routing = db.query(Routing).filter(
+                Routing.product_id == line.product_id,
+                Routing.is_active == True
+            ).first()
+
+            po_code = get_next_po_code()
+
+            production_order = ProductionOrder(
+                code=po_code,
+                product_id=line.product_id,
+                bom_id=bom.id if bom else None,
+                routing_id=routing.id if routing else None,
+                sales_order_id=order.id,
+                sales_order_line_id=line.id,
+                quantity_ordered=line.quantity,
+                quantity_completed=0,
+                quantity_scrapped=0,
+                source="sales_order",
+                status="draft",
+                priority=3,  # Normal priority
+                notes=f"Generated from {order.order_number} Line {line.line_number}",
+                created_by=current_user.email,
+            )
+
+            db.add(production_order)
+            db.flush()  # Get the ID for the next PO code lookup
+            created_orders.append(po_code)
+
+    else:
+        # quote_based order - should already have production order from convert
+        # But we can create one if it doesn't exist
+
+        # For quote-based, we need to find the product_id from the quote
+        if order.quote_id:
+            quote = db.query(Quote).filter(Quote.id == order.quote_id).first()
+            if quote and quote.product_id:
+                product_id = quote.product_id
+
+                bom = db.query(BOM).filter(
+                    BOM.product_id == product_id,
+                    BOM.active == True
+                ).first()
+
+                routing = db.query(Routing).filter(
+                    Routing.product_id == product_id,
+                    Routing.is_active == True
+                ).first()
+
+                po_code = get_next_po_code()
+
+                production_order = ProductionOrder(
+                    code=po_code,
+                    product_id=product_id,
+                    bom_id=bom.id if bom else None,
+                    routing_id=routing.id if routing else None,
+                    sales_order_id=order.id,
+                    quantity_ordered=order.quantity,
+                    quantity_completed=0,
+                    quantity_scrapped=0,
+                    source="sales_order",
+                    status="draft",
+                    priority=3,
+                    notes=f"Generated from {order.order_number}",
+                    created_by=current_user.email,
+                )
+
+                db.add(production_order)
+                created_orders.append(po_code)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Quote-based order has no product. Please accept the quote first."
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quote-based order has no associated quote"
+            )
+
+    db.commit()
+
+    # Update order status to confirmed if pending
+    if order.status == "pending":
+        order.status = "confirmed"
+        order.confirmed_at = datetime.utcnow()
+        db.commit()
+
+    return {
+        "message": f"Created {len(created_orders)} production order(s)",
+        "created_orders": created_orders,
+        "existing_orders": []
+    }
+
+
+# ============================================================================
+# Helper: Build response with lines
+# ============================================================================
+
+def build_sales_order_response(order: SalesOrder, db: Session) -> dict:
+    """Build sales order response with line items"""
+    lines = []
+    if order.order_type == "line_item":
+        order_lines = db.query(SalesOrderLine).filter(
+            SalesOrderLine.sales_order_id == order.id
+        ).order_by(SalesOrderLine.line_number).all()
+
+        for line in order_lines:
+            product = db.query(Product).filter(Product.id == line.product_id).first()
+            lines.append(SalesOrderLineResponse(
+                id=line.id,
+                line_number=line.line_number,
+                product_id=line.product_id,
+                product_sku=product.sku if product else line.product_sku,
+                product_name=product.name if product else line.product_name,
+                quantity=line.quantity,
+                unit_price=line.unit_price,
+                total_price=line.total_price,
+                notes=line.notes,
+            ))
+
+    return {
+        **order.__dict__,
+        "lines": lines,
+    }

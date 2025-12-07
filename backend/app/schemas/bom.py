@@ -98,7 +98,9 @@ class BOMListResponse(BaseModel):
     version: Optional[int] = None
     revision: Optional[str] = None
     active: bool
-    total_cost: Optional[Decimal] = None
+    material_cost: Optional[Decimal] = None  # BOM component cost
+    process_cost: Optional[Decimal] = None   # Routing process cost
+    total_cost: Optional[Decimal] = None     # Combined total (material + process)
     line_count: int = 0
     created_at: datetime
 

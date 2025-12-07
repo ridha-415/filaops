@@ -2,7 +2,7 @@
 Sales Order Pydantic Schemas
 """
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
@@ -10,6 +10,38 @@ from decimal import Decimal
 # ============================================================================
 # Request Schemas
 # ============================================================================
+
+class SalesOrderLineCreate(BaseModel):
+    """Line item for manual order creation"""
+    product_id: int = Field(..., description="Product ID")
+    quantity: int = Field(..., gt=0, description="Quantity")
+    unit_price: Optional[Decimal] = Field(None, description="Unit price (uses product price if not specified)")
+    notes: Optional[str] = Field(None, max_length=500)
+
+
+class SalesOrderCreate(BaseModel):
+    """Create a manual sales order (line_item type)"""
+    # Order lines (at least one required)
+    lines: List[SalesOrderLineCreate] = Field(..., min_length=1, description="Order lines")
+
+    # Optional order-level fields
+    customer_email: Optional[str] = Field(None, max_length=255, description="Customer email (for guest orders)")
+    source: str = Field("manual", description="Order source: manual, squarespace, woocommerce")
+    source_order_id: Optional[str] = Field(None, max_length=255, description="External order ID")
+
+    # Shipping
+    shipping_address_line1: Optional[str] = Field(None, max_length=255)
+    shipping_address_line2: Optional[str] = Field(None, max_length=255)
+    shipping_city: Optional[str] = Field(None, max_length=100)
+    shipping_state: Optional[str] = Field(None, max_length=50)
+    shipping_zip: Optional[str] = Field(None, max_length=20)
+    shipping_country: Optional[str] = Field("USA", max_length=100)
+    shipping_cost: Optional[Decimal] = Field(Decimal("0"), ge=0)
+
+    # Notes
+    customer_notes: Optional[str] = Field(None, max_length=5000)
+    internal_notes: Optional[str] = Field(None, max_length=5000)
+
 
 class SalesOrderConvert(BaseModel):
     """Request to convert quote to sales order"""
@@ -81,11 +113,35 @@ class SalesOrderListResponse(SalesOrderBase):
         from_attributes = True
 
 
+class SalesOrderLineResponse(BaseModel):
+    """Sales order line item response"""
+    id: int
+    line_number: int
+    product_id: int
+    product_sku: Optional[str] = None
+    product_name: Optional[str] = None
+    quantity: int
+    unit_price: Decimal
+    total_price: Decimal
+    notes: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class SalesOrderResponse(SalesOrderBase):
     """Full sales order details"""
     id: int
     user_id: int
     quote_id: Optional[int]
+
+    # Order type and source
+    order_type: Optional[str] = None  # 'quote_based' or 'line_item'
+    source: Optional[str] = None  # 'portal', 'manual', 'squarespace', 'woocommerce'
+    source_order_id: Optional[str] = None
+
+    # Line items (for line_item type orders)
+    lines: List[SalesOrderLineResponse] = []
 
     # Payment
     payment_method: Optional[str]

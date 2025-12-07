@@ -15,6 +15,7 @@ from app.models.bom import BOM, BOMLine
 from app.models.product import Product
 from app.models.user import User
 from app.models.inventory import Inventory
+from app.models.manufacturing import Routing
 from app.api.v1.endpoints.auth import get_current_admin_user
 from app.schemas.bom import (
     BOMCreate,
@@ -35,6 +36,22 @@ router = APIRouter(prefix="/bom", tags=["Admin - BOM Management"])
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+
+def get_effective_cost(product: Product) -> Decimal:
+    """Get the effective cost for a product using fallback priority.
+
+    Priority: standard_cost → average_cost → last_cost → cost (legacy)
+    """
+    if product.standard_cost and product.standard_cost > 0:
+        return Decimal(str(product.standard_cost))
+    if product.average_cost and product.average_cost > 0:
+        return Decimal(str(product.average_cost))
+    if product.last_cost and product.last_cost > 0:
+        return Decimal(str(product.last_cost))
+    if product.cost and product.cost > 0:
+        return Decimal(str(product.cost))
+    return Decimal("0")
+
 
 def get_component_inventory(component_id: int, db: Session) -> dict:
     """Get total inventory for a component across all locations"""
@@ -58,9 +75,10 @@ def build_bom_response(bom: BOM, db: Session) -> dict:
     lines = []
     for line in bom.lines:
         component = db.query(Product).filter(Product.id == line.component_id).first()
+        component_cost = get_effective_cost(component) if component else Decimal("0")
         line_cost = None
-        if component and component.cost and line.quantity:
-            line_cost = float(component.cost) * float(line.quantity)
+        if component and component_cost > 0 and line.quantity:
+            line_cost = float(component_cost) * float(line.quantity)
 
         # Get inventory status
         inventory = get_component_inventory(line.component_id, db)
@@ -85,7 +103,7 @@ def build_bom_response(bom: BOM, db: Session) -> dict:
             "component_sku": component.sku if component else None,
             "component_name": component.name if component else None,
             "component_unit": component.unit if component else None,
-            "component_cost": component.cost if component else None,
+            "component_cost": float(component_cost) if component_cost else None,
             "line_cost": line_cost,
             # Inventory info
             "inventory_on_hand": inventory["on_hand"],
@@ -121,12 +139,14 @@ def recalculate_bom_cost(bom: BOM, db: Session) -> Decimal:
     total = Decimal("0")
     for line in bom.lines:
         component = db.query(Product).filter(Product.id == line.component_id).first()
-        if component and component.cost:
-            qty = line.quantity or Decimal("0")
-            scrap = line.scrap_factor or Decimal("0")
-            # Add scrap factor: qty * (1 + scrap/100)
-            effective_qty = qty * (1 + scrap / 100)
-            total += component.cost * effective_qty
+        if component:
+            cost = get_effective_cost(component)
+            if cost > 0:
+                qty = line.quantity or Decimal("0")
+                scrap = line.scrap_factor or Decimal("0")
+                # Add scrap factor: qty * (1 + scrap/100)
+                effective_qty = qty * (1 + scrap / 100)
+                total += cost * effective_qty
     return total
 
 
@@ -171,6 +191,18 @@ async def list_boms(
     result = []
     for bom in boms:
         product = bom.product
+        material_cost = bom.total_cost or Decimal("0")
+
+        # Get routing process cost for this product
+        routing = db.query(Routing).filter(
+            Routing.product_id == bom.product_id,
+            Routing.is_active == True
+        ).first()
+        process_cost = routing.total_cost if routing and routing.total_cost else Decimal("0")
+
+        # Combined total
+        combined_total = material_cost + process_cost
+
         result.append({
             "id": bom.id,
             "product_id": bom.product_id,
@@ -181,7 +213,9 @@ async def list_boms(
             "version": bom.version,
             "revision": bom.revision,
             "active": bom.active,
-            "total_cost": bom.total_cost,
+            "material_cost": material_cost,
+            "process_cost": process_cost,
+            "total_cost": combined_total,
             "line_count": len(bom.lines),
             "created_at": bom.created_at,
         })
@@ -416,9 +450,10 @@ async def add_bom_line(
     db.refresh(line)
 
     # Calculate line cost
+    comp_cost = get_effective_cost(component)
     line_cost = None
-    if component.cost and line.quantity:
-        line_cost = float(component.cost) * float(line.quantity)
+    if comp_cost > 0 and line.quantity:
+        line_cost = float(comp_cost) * float(line.quantity)
 
     print(f"[ADMIN] BOM {bom_id} line added by {current_admin.email}")
 
@@ -433,7 +468,7 @@ async def add_bom_line(
         "component_sku": component.sku,
         "component_name": component.name,
         "component_unit": component.unit,
-        "component_cost": component.cost,
+        "component_cost": float(comp_cost) if comp_cost else None,
         "line_cost": line_cost,
     }
 
@@ -485,9 +520,10 @@ async def update_bom_line(
 
     # Get component for response
     component = db.query(Product).filter(Product.id == line.component_id).first()
+    comp_cost = get_effective_cost(component) if component else Decimal("0")
     line_cost = None
-    if component and component.cost and line.quantity:
-        line_cost = float(component.cost) * float(line.quantity)
+    if component and comp_cost > 0 and line.quantity:
+        line_cost = float(comp_cost) * float(line.quantity)
 
     print(f"[ADMIN] BOM {bom_id} line {line_id} updated by {current_admin.email}")
 
@@ -502,7 +538,7 @@ async def update_bom_line(
         "component_sku": component.sku if component else None,
         "component_name": component.name if component else None,
         "component_unit": component.unit if component else None,
-        "component_cost": component.cost if component else None,
+        "component_cost": float(comp_cost) if comp_cost else None,
         "line_cost": line_cost,
     }
 

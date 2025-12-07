@@ -61,8 +61,31 @@ uploads/
 .coverage
 htmlcov/
 .pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
 tests/e2e/screenshots/
 tests/e2e/test-results/
+tests/e2e/videos/
+tests/e2e/.auth/
+tests/__pycache__/
+playwright-report/
+playwright/.cache/
+test-results/
+
+# Jest / Vitest (frontend testing)
+coverage/
+.nyc_output/
+jest.config.local.js
+vitest.config.local.ts
+
+# Cypress
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
 
 # Backup files
 *.bak

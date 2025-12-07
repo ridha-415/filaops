@@ -307,14 +307,14 @@ async def create_production_order(
     # Find default BOM if not specified
     bom_id = request.bom_id
     if not bom_id:
-        default_bom = db.query(BOM).filter(BOM.product_id == request.product_id, BOM.is_default == True, BOM.active == True).first()
+        default_bom = db.query(BOM).filter(BOM.product_id == request.product_id, BOM.active == True).first()
         if default_bom:
             bom_id = default_bom.id
 
     # Find default routing if not specified
     routing_id = request.routing_id
     if not routing_id:
-        default_routing = db.query(Routing).filter(Routing.product_id == request.product_id, Routing.is_default == True, Routing.active == True).first()
+        default_routing = db.query(Routing).filter(Routing.product_id == request.product_id, Routing.is_active == True).first()
         if default_routing:
             routing_id = default_routing.id
 

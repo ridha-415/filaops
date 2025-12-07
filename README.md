@@ -32,49 +32,62 @@ FilaOps is an open source ERP system built for 3D print farms. Manage products, 
 
 ---
 
+## Documentation
+
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Step-by-step setup guide
+- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - Understanding the workflow (Products → BOMs → Orders → Production)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - For contributors
+
+---
+
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.11+
 - Node.js 18+
 - SQL Server Express (or SQL Server)
 - ODBC Driver 17 for SQL Server
 
-### Backend Setup
+### 1. Clone and Set Up Database
+
 ```bash
 git clone https://github.com/Blb3D/filaops.git
 cd filaops/backend
 
-python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
 pip install -r requirements.txt
 
+# Create database with all 36 tables + default data
+python ../scripts/fresh_database_setup.py --database FilaOps
+```
+
+### 2. Configure and Start Backend
+
+```bash
 cp .env.example .env
-# Edit .env with your database credentials
+# Edit .env: set DB_NAME=FilaOps
 
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
 API docs: http://localhost:8000/docs
 
-### Frontend Setup
-```bash
-cd filaops/frontend
+### 3. Start Frontend
 
+```bash
+cd ../frontend
 npm install
 npm run dev
 ```
 
 Admin UI: http://localhost:5173
 
-### Database Setup
+### 4. Log In
 
-Run the schema script in SQL Server Management Studio:
-```
-scripts/setup_database.sql
-```
+- **Email:** `admin@localhost`
+- **Password:** `admin123`
+
+For detailed instructions, see **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 
 ---
 
@@ -97,13 +110,13 @@ SECRET_KEY=your-secure-secret-key
 ```
 filaops/
 +-- backend/
-¦   +-- app/
-¦   ¦   +-- api/v1/endpoints/   # REST API routes
-¦   ¦   +-- models/             # SQLAlchemy ORM models
-¦   ¦   +-- schemas/            # Pydantic schemas
-¦   ¦   +-- services/           # Business logic
-¦   ¦   +-- core/               # Config, security
-¦   +-- requirements.txt
+|   +-- app/
+|   |   +-- api/v1/endpoints/   # REST API routes
+|   |   +-- models/             # SQLAlchemy ORM models
+|   |   +-- schemas/            # Pydantic schemas
+|   |   +-- services/           # Business logic
+|   |   +-- core/               # Config, security
+|   +-- requirements.txt
 +-- frontend/                   # React admin UI
 +-- mock-api/                   # Mock quote server (for contributors)
 +-- scripts/                    # Database setup scripts
