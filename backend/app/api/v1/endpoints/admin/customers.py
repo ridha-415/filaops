@@ -3,9 +3,13 @@ Customer Management Endpoints (Admin Only)
 
 Handles customer CRUD operations for admin users.
 Customers are users with account_type='customer'.
+
+Note: Customer portal login is a Pro feature. In open source, customers
+are CRM records for order management. They cannot log in to a portal.
 """
 from typing import List, Optional
 from datetime import datetime
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -286,8 +290,9 @@ async def create_customer(
     # Generate customer number
     customer_number = generate_customer_number(db)
 
-    # Hash password if provided, otherwise use placeholder
-    password_hash = get_password_hash(request.password) if request.password else get_password_hash("changeme123!")
+    # Use random unusable password - portal login is a Pro feature
+    # In open source, customers are CRM records only (no login capability)
+    password_hash = get_password_hash(secrets.token_urlsafe(32))
 
     customer = User(
         customer_number=customer_number,

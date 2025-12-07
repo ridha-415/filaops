@@ -24,7 +24,8 @@ class SalesOrderCreate(BaseModel):
     # Order lines (at least one required)
     lines: List[SalesOrderLineCreate] = Field(..., min_length=1, description="Order lines")
 
-    # Optional order-level fields
+    # Customer (optional - if not set, uses admin user as placeholder)
+    customer_id: Optional[int] = Field(None, description="Customer ID (from Customers module)")
     customer_email: Optional[str] = Field(None, max_length=255, description="Customer email (for guest orders)")
     source: str = Field("manual", description="Order source: manual, squarespace, woocommerce")
     source_order_id: Optional[str] = Field(None, max_length=255, description="External order ID")

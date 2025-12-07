@@ -38,9 +38,11 @@ class CustomerBase(BaseModel):
 
 
 class CustomerCreate(CustomerBase):
-    """Create a new customer"""
-    # Password is optional - if not provided, customer can't log in until set
-    password: Optional[str] = Field(None, min_length=8)
+    """Create a new customer (CRM record only)
+
+    Note: Customer portal login is a Pro feature. In open source,
+    customers are CRM records for order management only.
+    """
     status: Optional[str] = Field("active")
 
 

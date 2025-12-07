@@ -358,17 +358,9 @@ function CustomerModal({ customer, onSave, onClose }) {
     shipping_country: customer?.shipping_country || "USA",
   });
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [password, setPassword] = useState("");
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    const data = { ...form };
-    // Only include password for new customers or if changed
-    if (!customer && password) {
-      data.password = password;
-    }
-    onSave(data);
+    onSave(form);
   };
 
   const copyBillingToShipping = () => {
@@ -475,31 +467,6 @@ function CustomerModal({ customer, onSave, onClose }) {
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
             />
           </div>
-
-          {/* Password (only for new customers) */}
-          {!customer && (
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Password (optional - customer can set via reset)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={8}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 hover:text-white"
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Billing Address */}
           <div>

@@ -115,9 +115,12 @@ async def create_sales_order(
     # Get first product for material_type fallback
     first_product = line_products[0]["product"]
 
+    # Determine user_id: use customer_id if provided, otherwise current admin
+    user_id = request.customer_id if request.customer_id else current_user.id
+
     # Create sales order
     sales_order = SalesOrder(
-        user_id=current_user.id,
+        user_id=user_id,
         order_number=order_number,
         order_type="line_item",
         source=request.source or "manual",

@@ -32,7 +32,9 @@ export default function AdminOrders() {
   // Create order modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [createForm, setCreateForm] = useState({
+    customer_id: "",
     product_id: "",
     quantity: 1,
     shipping_address_line1: "",
@@ -50,12 +52,27 @@ export default function AdminOrders() {
     fetchOrders();
   }, [filters.status]);
 
-  // Fetch products when create modal opens
+  // Fetch products and customers when create modal opens
   useEffect(() => {
-    if (showCreateModal && products.length === 0) {
-      fetchProducts();
+    if (showCreateModal) {
+      if (products.length === 0) fetchProducts();
+      if (customers.length === 0) fetchCustomers();
     }
   }, [showCreateModal]);
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/admin/customers/search?limit=200`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustomers(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch customers:", err);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -97,6 +114,7 @@ export default function AdminOrders() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          customer_id: createForm.customer_id ? parseInt(createForm.customer_id) : null,
           lines: [
             {
               product_id: parseInt(createForm.product_id),
@@ -116,6 +134,7 @@ export default function AdminOrders() {
       if (res.ok) {
         setShowCreateModal(false);
         setCreateForm({
+          customer_id: "",
           product_id: "",
           quantity: 1,
           shipping_address_line1: "",
@@ -396,6 +415,26 @@ export default function AdminOrders() {
               </div>
 
               <form onSubmit={handleCreateOrder} className="space-y-4">
+                {/* Customer Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Customer
+                  </label>
+                  <select
+                    value={createForm.customer_id}
+                    onChange={(e) => setCreateForm({ ...createForm, customer_id: e.target.value })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                  >
+                    <option value="">Walk-in / No customer</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.customer_number} - {c.full_name || c.email}
+                        {c.company_name ? ` (${c.company_name})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Product Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
