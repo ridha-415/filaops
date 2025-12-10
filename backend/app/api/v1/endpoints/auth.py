@@ -9,8 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from slowapi import Limiter
-# Note: get_remote_address is used via limiter key_func in main.py
+from app.core.limiter import limiter
 
 from app.db.session import get_db
 from app.models.user import User, RefreshToken, PasswordResetRequest
@@ -47,10 +46,6 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-# Rate limiter - imported from main app after initialization
-# This will be set by main.py during app startup
-limiter: Limiter = None  # type: ignore
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -103,30 +98,9 @@ async def get_current_user(
     return user
 
 
-async def get_current_admin_user(
-    current_user: Annotated[User, Depends(get_current_user)]
-) -> User:
-    """
-    Dependency to require admin access.
-
-    Use this dependency for admin-only endpoints (BOM management,
-    production scheduling, etc.)
-
-    Args:
-        current_user: Current authenticated user (from get_current_user)
-
-    Returns:
-        User object if user is an admin
-
-    Raises:
-        HTTPException 403 if user is not an admin
-    """
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return current_user
+# Re-export from deps for backwards compatibility
+# NOTE: Prefer importing from app.api.v1.deps directly
+from app.api.v1.deps import get_current_admin_user, get_current_staff_user
 
 
 # ============================================================================
@@ -321,7 +295,7 @@ async def login_user(
         logger.error(f"Login error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Login failed: {str(e)}"
+            detail="Login failed due to an internal error"
         )
 
 
@@ -366,7 +340,7 @@ async def refresh_access_token(
     stored_token = db.query(RefreshToken).filter(
         RefreshToken.token_hash == token_hash,
         RefreshToken.user_id == user_id,
-        RefreshToken.revoked.is_(False)
+        RefreshToken.revoked == False
     ).first()
 
     if not stored_token or not stored_token.is_valid:
@@ -920,7 +894,7 @@ async def complete_password_reset(
     # Revoke all existing refresh tokens for security
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user.id,
-        RefreshToken.revoked.is_(False)
+        RefreshToken.revoked == False
     ).update({"revoked": True, "revoked_at": datetime.utcnow()})
 
     db.commit()
