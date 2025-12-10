@@ -2,7 +2,33 @@
 
 All notable changes to FilaOps will be documented in this file.
 
-## [Unreleased] - 2025-12-09
+## [1.0.1] - 2025-12-09
+
+### Changed
+- **Repository Organization**: Reorganized documentation structure for better collaboration
+  - Moved 75+ markdown files into organized `docs/` subdirectories (architecture, planning, history, development, sessions)
+  - Organized scripts by purpose (github/, database/, tools/)
+  - Cleaned root directory to only essential user-facing documentation
+  - Added documentation index and organization guide
+
+### Technical
+- **Type Checking**: Added mypy type checking infrastructure
+  - Configured mypy in `pyproject.toml` with SQLAlchemy plugin support
+  - Integrated type checking into CI pipeline
+  - Documented SQLAlchemy ORM type inference limitations
+- **Code Quality**: Completed Issue #27 improvements
+  - Standardized logging across 15+ files to use structured logger
+  - Removed duplicate logger setups
+  - Added type checking dependencies to requirements.txt
+- **CI/CD**: Enhanced GitHub Actions workflow
+  - Added mypy type checking step (non-blocking)
+  - Improved code quality checks
+
+### Fixed
+- Removed workspace files from repository
+- Updated `.gitignore` to exclude workspace files
+
+## [Unreleased]
 
 ### Added
 - **Unified Item Master**: Single `Products` table for all item types (finished goods, components, supplies, materials)
