@@ -1,3 +1,1 @@
-"""
-Unit tests for BLB3D ERP
-"""
+# Unit tests package

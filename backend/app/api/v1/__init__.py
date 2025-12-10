@@ -3,6 +3,7 @@ API v1 Router - FilaOps Open Source
 """
 from fastapi import APIRouter
 from app.api.v1.endpoints import (
+    scheduling,
     auth,
     sales_orders,
     production_orders,
@@ -18,6 +19,7 @@ from app.api.v1.endpoints import (
     mrp,
     features,
     setup,
+    scheduling,
     # license,  # Disabled until ready for production
 )
 from app.api.v1.endpoints.admin import router as admin_router
@@ -115,6 +117,13 @@ router.include_router(mrp.router)
 
 # Features (tier information)
 router.include_router(features.router)
+
+# Scheduling and Capacity Management
+router.include_router(
+    scheduling.router,
+    prefix="/scheduling",
+    tags=["scheduling"]
+)
 
 # License activation (disabled until ready for production)
 # router.include_router(license.router)

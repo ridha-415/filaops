@@ -11,10 +11,17 @@ export const test = base.extend<{ authenticatedPage: Page }>({
     // Fill login form
     await page.fill('input[type="email"]', 'admin@localhost');
     await page.fill('input[type="password"]', 'admin123');
-    await page.click('button[type="submit"]');
-
-    // Wait for redirect to admin area
-    await page.waitForURL('/admin**', { timeout: 10000 });
+    
+    // Submit and wait for navigation to complete
+    await Promise.all([
+      page.waitForURL('/admin**', { timeout: 10000 }),
+      page.click('button[type="submit"]')
+    ]);
+    
+    // Wait for page to fully load and localStorage to be set
+    // The navigation confirms login succeeded, give React time to update localStorage
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500); // Small delay for React state updates
 
     // Use the authenticated page
     await use(page);

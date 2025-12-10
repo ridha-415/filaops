@@ -114,6 +114,7 @@ def has_feature(tier: Tier, feature: str) -> bool:
         "printer_fleet": [Tier.ENTERPRISE],
         "advanced_analytics": [Tier.ENTERPRISE],
         "accounting_module": [Tier.PRO, Tier.ENTERPRISE],
+        "auto_scheduling": [Tier.PRO, Tier.ENTERPRISE],
     }
     return tier in feature_map.get(feature, [])
 

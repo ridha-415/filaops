@@ -13,9 +13,13 @@
     "test:e2e:debug": "playwright test --debug",
     "test:customers": "playwright test --grep customers",
     "test:orders": "playwright test --grep orders",
-    "test:workflow": "playwright test --grep workflow"
+    "test:workflow": "playwright test --grep workflow",
+    "test:scheduling": "playwright test --grep scheduling"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router": "^7.10.1",

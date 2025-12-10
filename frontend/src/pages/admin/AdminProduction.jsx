@@ -1,15 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import ProductionSchedulingModal from "../../components/ProductionSchedulingModal";
+import ProductionScheduler from "../../components/ProductionScheduler";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-const statusColors = {
-  draft: "bg-gray-500/20 text-gray-400",
-  released: "bg-blue-500/20 text-blue-400",
-  in_progress: "bg-purple-500/20 text-purple-400",
-  complete: "bg-green-500/20 text-green-400",
-  cancelled: "bg-red-500/20 text-red-400",
-  on_hold: "bg-yellow-500/20 text-yellow-400",
-};
 
 export default function AdminProduction() {
   const [productionOrders, setProductionOrders] = useState([]);
@@ -32,24 +25,51 @@ export default function AdminProduction() {
   });
   const [creating, setCreating] = useState(false);
 
+  // Scheduling modal state
+  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [selectedOrderForScheduling, setSelectedOrderForScheduling] =
+    useState(null);
+
+  // View mode: kanban or scheduler
+  const [viewMode, setViewMode] = useState("kanban"); // kanban or scheduler
+
   const token = localStorage.getItem("adminToken");
 
-  useEffect(() => {
-    fetchProductionOrders();
-  }, [filters.status]);
+  const fetchProductionOrders = useCallback(async () => {
+    if (!token) return;
 
-  // Fetch products when modal opens
-  useEffect(() => {
-    if (showCreateModal && products.length === 0) {
-      fetchProducts();
-    }
-  }, [showCreateModal]);
-
-  const fetchProducts = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/products?limit=500&active=true`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const params = new URLSearchParams();
+      if (filters.status !== "all") params.set("status", filters.status);
+      params.set("limit", "100");
+
+      const res = await fetch(
+        `${API_URL}/api/v1/production-orders/?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to fetch production orders");
+
+      const data = await res.json();
+      setProductionOrders(data.items || data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filters.status]);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/v1/products?limit=500&active=true`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       if (res.ok) {
         const data = await res.json();
         setProducts(data.items || data || []);
@@ -57,7 +77,18 @@ export default function AdminProduction() {
     } catch (err) {
       console.error("Failed to fetch products:", err);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchProductionOrders();
+  }, [fetchProductionOrders]);
+
+  // Fetch products when modal opens
+  useEffect(() => {
+    if (showCreateModal && products.length === 0) {
+      fetchProducts();
+    }
+  }, [showCreateModal, products.length, fetchProducts]);
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
@@ -104,30 +135,6 @@ export default function AdminProduction() {
     }
   };
 
-  const fetchProductionOrders = async () => {
-    if (!token) return;
-
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.status !== "all") params.set("status", filters.status);
-      params.set("limit", "100");
-
-      const res = await fetch(`${API_URL}/api/v1/production-orders/?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Failed to fetch production orders");
-
-      const data = await res.json();
-      setProductionOrders(data.items || data || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
       // Map status to the correct action endpoint
@@ -143,13 +150,16 @@ export default function AdminProduction() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/v1/production-orders/${orderId}/${action}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/production-orders/${orderId}/${action}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (res.ok) {
         fetchProductionOrders();
@@ -186,210 +196,353 @@ export default function AdminProduction() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-white">Production</h1>
-          <p className="text-gray-400 mt-1">Track print jobs and production orders</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-500 hover:to-purple-500"
-        >
-          + Create Production Order
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search by PO code, product, or sales order..."
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
-          />
-        </div>
-        <select
-          value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-        >
-          <option value="all">All Status</option>
-          <option value="draft">Draft</option>
-          <option value="released">Released</option>
-          <option value="in_progress">In Progress</option>
-          <option value="complete">Complete</option>
-          <option value="on_hold">On Hold</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">Draft</p>
-          <p className="text-2xl font-bold text-gray-400">{groupedOrders.draft.length}</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">Released</p>
-          <p className="text-2xl font-bold text-blue-400">{groupedOrders.released.length}</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">In Progress</p>
-          <p className="text-2xl font-bold text-purple-400">{groupedOrders.in_progress.length}</p>
-        </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">Completed Today</p>
-          <p className="text-2xl font-bold text-green-400">
-            {groupedOrders.complete.filter(o => {
-              const today = new Date().toDateString();
-              return o.completed_at && new Date(o.completed_at).toDateString() === today;
-            }).length}
+          <p className="text-gray-400 mt-1">
+            Track print jobs and production orders
           </p>
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <p className="text-gray-400 text-sm">Total Active</p>
-          <p className="text-2xl font-bold text-white">
-            {groupedOrders.released.length + groupedOrders.in_progress.length}
-          </p>
+        <div className="flex gap-3">
+          <div className="flex bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode("kanban")}
+              className={`px-4 py-2 rounded text-sm transition-colors ${
+                viewMode === "kanban"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Kanban
+            </button>
+            <button
+              onClick={() => setViewMode("scheduler")}
+              className={`px-4 py-2 rounded text-sm transition-colors ${
+                viewMode === "scheduler"
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              Scheduler
+            </button>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-500 hover:to-purple-500"
+          >
+            + Create Production Order
+          </button>
         </div>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
-          {error}
-        </div>
+      {/* Scheduler View */}
+      {viewMode === "scheduler" && (
+        <ProductionScheduler onScheduleUpdate={fetchProductionOrders} />
       )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        </div>
-      )}
-
-      {/* Kanban Board */}
-      {!loading && (
-        <div className="grid grid-cols-4 gap-4">
-          {/* Draft Column */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-gray-500"></div>
-              <h3 className="font-medium text-white">Draft</h3>
-              <span className="text-gray-500 text-sm">({groupedOrders.draft.length})</span>
+      {/* Kanban View */}
+      {viewMode === "kanban" && (
+        <>
+          {/* Filters */}
+          <div className="flex gap-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by PO code, product, or sales order..."
+                value={filters.search}
+                onChange={(e) =>
+                  setFilters({ ...filters, search: e.target.value })
+                }
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
+              />
             </div>
-            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {groupedOrders.draft.map((order) => (
-                <div key={order.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-white font-medium">{order.code}</span>
-                    <span className="text-xs text-gray-500">{order.quantity_ordered} units</span>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">{order.product_name || "N/A"}</p>
-                  <button
-                    onClick={() => handleStatusUpdate(order.id, "released")}
-                    className="w-full py-1.5 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
-                  >
-                    Release
-                  </button>
-                </div>
-              ))}
-              {groupedOrders.draft.length === 0 && (
-                <p className="text-gray-500 text-sm text-center py-8">No draft orders</p>
-              )}
+            <select
+              value={filters.status}
+              onChange={(e) =>
+                setFilters({ ...filters, status: e.target.value })
+              }
+              className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="released">Released</option>
+              <option value="in_progress">In Progress</option>
+              <option value="complete">Complete</option>
+              <option value="on_hold">On Hold</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-5 gap-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <p className="text-gray-400 text-sm">Draft</p>
+              <p className="text-2xl font-bold text-gray-400">
+                {groupedOrders.draft.length}
+              </p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <p className="text-gray-400 text-sm">Released</p>
+              <p className="text-2xl font-bold text-blue-400">
+                {groupedOrders.released.length}
+              </p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <p className="text-gray-400 text-sm">In Progress</p>
+              <p className="text-2xl font-bold text-purple-400">
+                {groupedOrders.in_progress.length}
+              </p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <p className="text-gray-400 text-sm">Completed Today</p>
+              <p className="text-2xl font-bold text-green-400">
+                {
+                  groupedOrders.complete.filter((o) => {
+                    const today = new Date().toDateString();
+                    return (
+                      o.completed_at &&
+                      new Date(o.completed_at).toDateString() === today
+                    );
+                  }).length
+                }
+              </p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <p className="text-gray-400 text-sm">Total Active</p>
+              <p className="text-2xl font-bold text-white">
+                {groupedOrders.released.length +
+                  groupedOrders.in_progress.length}
+              </p>
             </div>
           </div>
 
-          {/* Released Column */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <h3 className="font-medium text-white">Released</h3>
-              <span className="text-gray-500 text-sm">({groupedOrders.released.length})</span>
+          {/* Error */}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+              {error}
             </div>
-            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {groupedOrders.released.map((order) => (
-                <div key={order.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-white font-medium">{order.code}</span>
-                    <span className="text-xs text-gray-500">{order.quantity_ordered} units</span>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-3">{order.product_name || "N/A"}</p>
-                  <button
-                    onClick={() => handleStatusUpdate(order.id, "in_progress")}
-                    className="w-full py-1.5 bg-purple-600/20 text-purple-400 rounded text-sm hover:bg-purple-600/30"
-                  >
-                    Start Production
-                  </button>
-                </div>
-              ))}
-              {groupedOrders.released.length === 0 && (
-                <p className="text-gray-500 text-sm text-center py-8">No released orders</p>
-              )}
-            </div>
-          </div>
+          )}
 
-          {/* In Progress Column */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-              <h3 className="font-medium text-white">In Progress</h3>
-              <span className="text-gray-500 text-sm">({groupedOrders.in_progress.length})</span>
+          {/* Loading */}
+          {loading && (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
-            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {groupedOrders.in_progress.map((order) => (
-                <div key={order.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-white font-medium">{order.code}</span>
-                    <span className="text-xs text-gray-500">{order.quantity_completed}/{order.quantity_ordered}</span>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-2">{order.product_name || "N/A"}</p>
-                  {order.completion_percent > 0 && (
-                    <div className="w-full bg-gray-700 rounded-full h-1.5 mb-3">
-                      <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${order.completion_percent}%` }}></div>
+          )}
+
+          {/* Kanban Board */}
+          {!loading && (
+            <div className="grid grid-cols-4 gap-4">
+              {/* Draft Column */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+                  <h3 className="font-medium text-white">Draft</h3>
+                  <span className="text-gray-500 text-sm">
+                    ({groupedOrders.draft.length})
+                  </span>
+                </div>
+                <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+                  {groupedOrders.draft.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-4"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-white font-medium">
+                          {order.code}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {order.quantity_ordered} units
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-3">
+                        {order.product_name || "N/A"}
+                      </p>
+                      <button
+                        onClick={() => handleStatusUpdate(order.id, "released")}
+                        className="w-full py-1.5 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                      >
+                        Release
+                      </button>
                     </div>
-                  )}
-                  <button
-                    onClick={() => handleStatusUpdate(order.id, "complete")}
-                    className="w-full py-1.5 bg-green-600/20 text-green-400 rounded text-sm hover:bg-green-600/30"
-                  >
-                    Mark Complete
-                  </button>
-                </div>
-              ))}
-              {groupedOrders.in_progress.length === 0 && (
-                <p className="text-gray-500 text-sm text-center py-8">No active production</p>
-              )}
-            </div>
-          </div>
-
-          {/* Completed Column */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
-            <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <h3 className="font-medium text-white">Complete</h3>
-              <span className="text-gray-500 text-sm">({groupedOrders.complete.length})</span>
-            </div>
-            <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {groupedOrders.complete.slice(0, 10).map((order) => (
-                <div key={order.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 opacity-75">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-white font-medium">{order.code}</span>
-                    <span className="text-xs text-gray-500">{order.quantity_completed}/{order.quantity_ordered}</span>
-                  </div>
-                  <p className="text-sm text-gray-400">{order.product_name || "N/A"}</p>
-                  {order.completed_at && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      {new Date(order.completed_at).toLocaleDateString()}
+                  ))}
+                  {groupedOrders.draft.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-8">
+                      No draft orders
                     </p>
                   )}
                 </div>
-              ))}
-              {groupedOrders.complete.length === 0 && (
-                <p className="text-gray-500 text-sm text-center py-8">No completed orders</p>
-              )}
+              </div>
+
+              {/* Released Column */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <h3 className="font-medium text-white">Released</h3>
+                  <span className="text-gray-500 text-sm">
+                    ({groupedOrders.released.length})
+                  </span>
+                </div>
+                <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+                  {groupedOrders.released.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-4"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-white font-medium">
+                          {order.code}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {order.quantity_ordered} units
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-2">
+                        {order.product_name || "N/A"}
+                      </p>
+                      {order.scheduled_start && (
+                        <p className="text-xs text-gray-500 mb-2">
+                          📅 {new Date(order.scheduled_start).toLocaleString()}
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedOrderForScheduling(order);
+                            setShowSchedulingModal(true);
+                          }}
+                          className="flex-1 py-1.5 bg-blue-600/20 text-blue-400 rounded text-sm hover:bg-blue-600/30"
+                          title="Schedule to specific machine"
+                        >
+                          Schedule
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleStatusUpdate(order.id, "in_progress")
+                          }
+                          className="flex-1 py-1.5 bg-purple-600/20 text-purple-400 rounded text-sm hover:bg-purple-600/30"
+                          title="Start immediately without scheduling"
+                        >
+                          Start Now
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {groupedOrders.released.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-8">
+                      No released orders
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* In Progress Column */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  <h3 className="font-medium text-white">In Progress</h3>
+                  <span className="text-gray-500 text-sm">
+                    ({groupedOrders.in_progress.length})
+                  </span>
+                </div>
+                <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+                  {groupedOrders.in_progress.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-4"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-white font-medium">
+                          {order.code}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {order.quantity_completed}/{order.quantity_ordered}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400 mb-2">
+                        {order.product_name || "N/A"}
+                      </p>
+                      {order.completion_percent > 0 && (
+                        <div className="w-full bg-gray-700 rounded-full h-1.5 mb-3">
+                          <div
+                            className="bg-purple-500 h-1.5 rounded-full"
+                            style={{ width: `${order.completion_percent}%` }}
+                          ></div>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => handleStatusUpdate(order.id, "complete")}
+                        className="w-full py-1.5 bg-green-600/20 text-green-400 rounded text-sm hover:bg-green-600/30"
+                      >
+                        Mark Complete
+                      </button>
+                    </div>
+                  ))}
+                  {groupedOrders.in_progress.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-8">
+                      No active production
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Completed Column */}
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
+                <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <h3 className="font-medium text-white">Complete</h3>
+                  <span className="text-gray-500 text-sm">
+                    ({groupedOrders.complete.length})
+                  </span>
+                </div>
+                <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+                  {groupedOrders.complete.slice(0, 10).map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-gray-800 border border-gray-700 rounded-lg p-4 opacity-75"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-white font-medium">
+                          {order.code}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {order.quantity_completed}/{order.quantity_ordered}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        {order.product_name || "N/A"}
+                      </p>
+                      {order.completed_at && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {new Date(order.completed_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  {groupedOrders.complete.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-8">
+                      No completed orders
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
+      )}
+
+      {/* Scheduling Modal */}
+      {showSchedulingModal && selectedOrderForScheduling && (
+        <ProductionSchedulingModal
+          productionOrder={selectedOrderForScheduling}
+          onClose={() => {
+            setShowSchedulingModal(false);
+            setSelectedOrderForScheduling(null);
+          }}
+          onSchedule={() => {
+            fetchProductionOrders();
+            setShowSchedulingModal(false);
+            setSelectedOrderForScheduling(null);
+          }}
+        />
       )}
 
       {/* Create Production Order Modal */}
@@ -397,7 +550,9 @@ export default function AdminProduction() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Create Production Order</h2>
+              <h2 className="text-xl font-bold text-white">
+                Create Production Order
+              </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="text-gray-400 hover:text-white"
@@ -409,10 +564,14 @@ export default function AdminProduction() {
             <form onSubmit={handleCreateOrder} className="space-y-4">
               {/* Product Selection */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Product *</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Product *
+                </label>
                 <select
                   value={createForm.product_id}
-                  onChange={(e) => setCreateForm({ ...createForm, product_id: e.target.value })}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, product_id: e.target.value })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                   required
                 >
@@ -427,12 +586,19 @@ export default function AdminProduction() {
 
               {/* Quantity */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Quantity *</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Quantity *
+                </label>
                 <input
                   type="number"
                   min="1"
                   value={createForm.quantity_ordered}
-                  onChange={(e) => setCreateForm({ ...createForm, quantity_ordered: e.target.value })}
+                  onChange={(e) =>
+                    setCreateForm({
+                      ...createForm,
+                      quantity_ordered: e.target.value,
+                    })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                   required
                 />
@@ -440,10 +606,14 @@ export default function AdminProduction() {
 
               {/* Priority */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Priority</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Priority
+                </label>
                 <select
                   value={createForm.priority}
-                  onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, priority: e.target.value })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                 >
                   <option value="1">1 - Urgent</option>
@@ -456,21 +626,29 @@ export default function AdminProduction() {
 
               {/* Due Date */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Due Date</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Due Date
+                </label>
                 <input
                   type="date"
                   value={createForm.due_date}
-                  onChange={(e) => setCreateForm({ ...createForm, due_date: e.target.value })}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, due_date: e.target.value })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                 />
               </div>
 
               {/* Notes */}
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Notes</label>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Notes
+                </label>
                 <textarea
                   value={createForm.notes}
-                  onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, notes: e.target.value })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-20"
                   placeholder="Optional notes..."
                 />
