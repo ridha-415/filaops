@@ -4,6 +4,7 @@ import MaterialForm from "../../components/MaterialForm";
 import BOMEditor from "../../components/BOMEditor";
 import RoutingEditor from "../../components/RoutingEditor";
 import { API_URL } from "../../config/api";
+import { useToast } from "../../components/Toast";
 
 // Item type options
 const ITEM_TYPES = [
@@ -15,6 +16,7 @@ const ITEM_TYPES = [
 ];
 
 export default function AdminItems() {
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
@@ -26,6 +28,13 @@ export default function AdminItems() {
     search: "",
     itemType: "all",
     activeOnly: true,
+  });
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 50,
+    total: 0,
   });
 
   // Modal states
@@ -51,7 +60,15 @@ export default function AdminItems() {
 
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
     fetchItems();
+  }, [selectedCategory, filters.itemType, filters.activeOnly, pagination.page, pagination.pageSize]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
   }, [selectedCategory, filters.itemType, filters.activeOnly]);
 
   const fetchCategories = async () => {
@@ -86,11 +103,13 @@ export default function AdminItems() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("limit", "200");
+      params.set("limit", pagination.pageSize.toString());
+      params.set("offset", ((pagination.page - 1) * pagination.pageSize).toString());
       params.set("active_only", filters.activeOnly.toString());
       if (selectedCategory)
         params.set("category_id", selectedCategory.toString());
       if (filters.itemType !== "all") params.set("item_type", filters.itemType);
+      if (filters.search) params.set("search", filters.search);
 
       const res = await fetch(`${API_URL}/api/v1/items?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -98,6 +117,7 @@ export default function AdminItems() {
       if (!res.ok) throw new Error("Failed to fetch items");
       const data = await res.json();
       setItems(data.items || []);
+      setPagination((prev) => ({ ...prev, total: data.total || 0 }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -105,15 +125,25 @@ export default function AdminItems() {
     }
   };
 
-  const filteredItems = items.filter((item) => {
-    if (!filters.search) return true;
-    const search = filters.search.toLowerCase();
-    return (
-      item.sku?.toLowerCase().includes(search) ||
-      item.name?.toLowerCase().includes(search) ||
-      item.upc?.toLowerCase().includes(search)
-    );
-  });
+  // Server-side search is now used, so filteredItems is just items
+  const filteredItems = items;
+
+  // Debounced search - trigger fetch when search changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.page === 1) {
+        fetchItems();
+      } else {
+        setPagination((prev) => ({ ...prev, page: 1 }));
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  // Pagination helpers
+  const totalPages = Math.ceil(pagination.total / pagination.pageSize);
+  const canGoPrev = pagination.page > 1;
+  const canGoNext = pagination.page < totalPages;
 
   // Toggle category expand/collapse
   const toggleExpand = (categoryId) => {
@@ -230,11 +260,12 @@ export default function AdminItems() {
         throw new Error(err.detail || "Failed to save category");
       }
 
+      toast.success(editingCategory ? "Category updated" : "Category created");
       setShowCategoryModal(false);
       setEditingCategory(null);
       fetchCategories();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -265,7 +296,7 @@ export default function AdminItems() {
   // Bulk update handler
   const handleBulkUpdate = async (updateData) => {
     if (selectedItems.size === 0) {
-      alert("Please select at least one item");
+      toast.warning("Please select at least one item");
       return;
     }
 
@@ -288,12 +319,12 @@ export default function AdminItems() {
       }
 
       const data = await res.json();
-      alert(`Successfully updated ${data.message}`);
+      toast.success(`Successfully updated ${data.message}`);
       setSelectedItems(new Set());
       setShowBulkUpdateModal(false);
       fetchItems(); // Refresh list
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -326,9 +357,10 @@ export default function AdminItems() {
 
       const data = await res.json();
       setRecostResult(data);
+      toast.success(`Recosted ${data.updated || 0} items`);
       fetchItems(); // Refresh list to show new costs
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setRecosting(false);
     }
@@ -732,6 +764,42 @@ export default function AdminItems() {
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700">
+            <div className="text-sm text-gray-400">
+              Showing {((pagination.page - 1) * pagination.pageSize) + 1} - {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} items
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={pagination.pageSize}
+                onChange={(e) => setPagination((prev) => ({ ...prev, pageSize: parseInt(e.target.value), page: 1 }))}
+                className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
+              >
+                <option value={25}>25 per page</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={200}>200 per page</option>
+              </select>
+              <button
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+                disabled={!canGoPrev}
+                className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400">
+                Page {pagination.page} of {totalPages || 1}
+              </span>
+              <button
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+                disabled={!canGoNext}
+                className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
+              >
+                Next
+              </button>
+            </div>
+          </div>
           </div>
         )}
       </div>
@@ -757,9 +825,16 @@ export default function AdminItems() {
         onClose={() => {
           setShowMaterialModal(false);
         }}
-        onSuccess={() => {
+        onSuccess={(newItem) => {
           setShowMaterialModal(false);
-          fetchItems();
+          toast.success(`Material created: ${newItem?.sku || 'Success'}`);
+          // Search for the new item so user can see it
+          if (newItem?.sku) {
+            setFilters((prev) => ({ ...prev, search: newItem.sku, itemType: "all" }));
+            setSelectedCategory(null);
+          } else {
+            fetchItems();
+          }
         }}
       />
 
@@ -825,6 +900,7 @@ export default function AdminItems() {
 
 // Bulk Update Modal
 function BulkUpdateModal({ categories, selectedCount, onSave, onClose }) {
+  const toast = useToast();
   const [form, setForm] = useState({
     category_id: "",
     item_type: "",
@@ -864,7 +940,7 @@ function BulkUpdateModal({ categories, selectedCount, onSave, onClose }) {
 
     // Check if at least one field is being updated
     if (Object.keys(updateData).length === 0) {
-      alert("Please select at least one field to update");
+      toast.warning("Please select at least one field to update");
       return;
     }
 
