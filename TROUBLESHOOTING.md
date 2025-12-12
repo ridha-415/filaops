@@ -540,17 +540,119 @@ This removes the database volume and starts fresh. The setup wizard will appear.
 
 ---
 
+## Remote Access Issues
+
+### "Cannot connect to API" when accessing from another machine
+
+**Problem:** Frontend loads but shows "Cannot connect to API" error when accessing FilaOps from a different computer on your network.
+
+**Cause:** By default, FilaOps is configured for localhost access. The frontend has the API URL baked in at build time.
+
+**Solution:**
+
+1. **Find your server's IP address:**
+   ```bash
+   # Windows
+   ipconfig
+   # Look for "IPv4 Address" (e.g., 192.168.1.100)
+   
+   # Linux/Mac
+   ip addr
+   # or
+   hostname -I
+   ```
+
+2. **Update your `.env` file:**
+   ```
+   VITE_API_URL=http://192.168.1.100:8000
+   FRONTEND_URL=http://192.168.1.100:5173
+   ```
+   Replace `192.168.1.100` with your actual server IP.
+
+3. **Rebuild the frontend (required!):**
+   ```bash
+   docker-compose down
+   docker-compose build --no-cache frontend
+   docker-compose up -d
+   ```
+
+   ⚠️ **Important:** You MUST rebuild with `--no-cache`. The `VITE_API_URL` is compiled into the JavaScript at build time - simply restarting containers won't work.
+
+4. **Access from other machines:**
+   - Open `http://192.168.1.100:5173` in your browser
+   - Use your server's IP, not `localhost`
+
+**Why is rebuild required?**
+
+Vite (the frontend build tool) bakes environment variables starting with `VITE_` into the JavaScript bundle at compile time. This is different from backend environment variables which are read at runtime. Changing `.env` and restarting only affects the backend - the frontend needs a full rebuild.
+
+---
+
+### API works in browser but frontend can't connect
+
+**Problem:** You can open `http://192.168.1.100:8000` directly and see the API response, but the frontend shows connection errors.
+
+**Cause:** CORS (Cross-Origin Resource Sharing) is blocking the frontend.
+
+**Solution:**
+
+Make sure `FRONTEND_URL` in your `.env` matches exactly how you access the frontend:
+
+```
+# If you access via http://192.168.1.100:5173
+FRONTEND_URL=http://192.168.1.100:5173
+```
+
+Then restart the backend:
+```bash
+docker-compose restart backend
+```
+
+---
+
+### Firewall blocking access
+
+**Problem:** Can't reach FilaOps from other machines at all.
+
+**Solution:**
+
+**Windows:**
+```powershell
+# Allow ports through Windows Firewall
+netsh advfirewall firewall add rule name="FilaOps Frontend" dir=in action=allow protocol=tcp localport=5173
+netsh advfirewall firewall add rule name="FilaOps Backend" dir=in action=allow protocol=tcp localport=8000
+```
+
+**Linux (UFW):**
+```bash
+sudo ufw allow 5173/tcp
+sudo ufw allow 8000/tcp
+```
+
+**Linux (firewalld):**
+```bash
+sudo firewall-cmd --permanent --add-port=5173/tcp
+sudo firewall-cmd --permanent --add-port=8000/tcp
+sudo firewall-cmd --reload
+```
+
+---
+
 ## Still Need Help?
 
 1. **Check logs:**
    - **Docker:** `docker-compose logs -f`
    - **Manual:** Check terminal output
 
-2. **Search existing issues:**
+2. **Join Discord for quick help:**
+   - [Discord Server](https://discord.gg/FAhxySnRwa)
+   - Best for installation issues and quick questions
+
+3. **Search existing issues:**
    - [GitHub Issues](https://github.com/Blb3D/filaops/issues)
    - [GitHub Discussions](https://github.com/Blb3D/filaops/discussions)
 
-3. **Create a new issue:**
+4. **Create a new issue:**
    - Include error messages
    - Include logs
    - Describe what you were doing

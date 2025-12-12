@@ -94,7 +94,7 @@ services:
       - DB_TRUSTED_CONNECTION=false
       - SECRET_KEY=${SECRET_KEY:-change-this-in-production-use-openssl-rand-hex-32}
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://localhost:80"]
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
       - DEBUG=${DEBUG:-false}
       - ENVIRONMENT=${ENVIRONMENT:-production}
     ports:
