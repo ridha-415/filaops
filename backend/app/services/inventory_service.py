@@ -14,7 +14,7 @@ from app.models.inventory import Inventory, InventoryTransaction, InventoryLocat
 from app.models.product import Product
 from app.models.bom import BOM, BOMLine
 from app.models.production_order import ProductionOrder
-from app.models.sales_order import SalesOrder, SalesOrderLine
+from app.models.sales_order import SalesOrder
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
