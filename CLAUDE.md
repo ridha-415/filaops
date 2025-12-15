@@ -31,6 +31,27 @@ docker-compose up     # ❌ NO!
 - Development has separate Docker volumes (`filaops-dev-*`)
 - Code changes should be tested on DEV before touching PROD
 
+### Updating Production (Owner Only)
+
+After merging a release to `main`:
+
+```bash
+git checkout main
+git pull
+docker-compose build
+docker-compose up -d
+docker-compose exec backend alembic upgrade head  # if migrations exist
+```
+
+Data stays intact - only code updates, volumes are preserved.
+
+**DANGER - These commands DELETE all business data:**
+
+```bash
+docker-compose down -v    # ❌ NEVER - deletes volumes
+docker volume rm filaops-db-data  # ❌ NEVER
+```
+
 ---
 
 ## Project Overview
