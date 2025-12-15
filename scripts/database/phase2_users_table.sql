@@ -112,7 +112,7 @@ INSERT INTO users (
     email_verified,
     status
 ) VALUES (
-    'bbaker@blb3dprinting.com',
+    'info@blb3dprinting.com',
     '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5ND2cKlHm5uWi',  -- ChangeMe123!
     'Brandon',
     'Baker',
@@ -123,6 +123,6 @@ INSERT INTO users (
 GO
 
 PRINT 'Phase 2A users table migration completed successfully!';
-PRINT 'Default admin user created: bbaker@blb3dprinting.com (password: ChangeMe123!)';
+PRINT 'Default admin user created: info@blb3dprinting.com (password: ChangeMe123!)';
 PRINT 'IMPORTANT: Change the admin password immediately after first login!';
 GO

@@ -130,7 +130,7 @@ ABS_ASA_SIZE_LIMITS = {
 # CONTACT & NOTIFICATIONS
 # ============================================================================
 
-BUSINESS_EMAIL: str = 'bbaker@blb3dprinting.com'
+BUSINESS_EMAIL: str = 'info@blb3dprinting.com'
 BUSINESS_NAME: str = 'BLB3D Printing'
 
 
