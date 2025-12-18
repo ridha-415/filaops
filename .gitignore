@@ -80,6 +80,7 @@ test-results/
 # Frontend E2E (Playwright)
 frontend/e2e/test-results/
 frontend/e2e/screenshots/
+frontend/e2e/.auth/
 frontend/playwright-report/
 frontend/test-results/
 frontend/.auth/
