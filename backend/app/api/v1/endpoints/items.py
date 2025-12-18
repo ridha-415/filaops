@@ -882,7 +882,7 @@ async def get_low_stock_items(
 
     # Calculate enhanced summary
     critical_count = sum(1 for i in items if i["available_qty"] <= 0)
-    urgent_count = sum(1 for i in items if 0 < i["available_qty"] <= i["reorder_point"] * 0.5 if i["reorder_point"])
+    urgent_count = sum(1 for i in items if i["reorder_point"] and 0 < i["available_qty"] <= i["reorder_point"] * 0.5)
     low_count = sum(1 for i in items if i["reorder_point"] and i["available_qty"] > i["reorder_point"] * 0.5)
     mrp_shortage_count = sum(1 for i in items if i["mrp_shortage"] > 0)
     total_shortfall_value = sum(i["shortfall"] * i["cost"] for i in items)
