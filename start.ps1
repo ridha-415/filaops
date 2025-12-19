@@ -27,7 +27,7 @@ $backendJob = Start-Job -ScriptBlock {
     Set-Location $using:PWD
     $env:DB_NAME = "FilaOps"
     Set-Location backend
-    python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 }
 
 # Wait a moment for backend to start
@@ -57,14 +57,14 @@ Start-Sleep -Seconds 3
 Write-Host "`n============================================================" -ForegroundColor Cyan
 Write-Host "FilaOps is starting up!" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Backend API:  http://localhost:8000" -ForegroundColor White
-Write-Host "API Docs:     http://localhost:8000/docs" -ForegroundColor White
+Write-Host "Backend API:  http://localhost:8001" -ForegroundColor White
+Write-Host "API Docs:     http://localhost:8001/docs" -ForegroundColor White
 Write-Host "Frontend:     http://localhost:5173" -ForegroundColor White
 Write-Host "`nPress Ctrl+C to stop both servers" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # Monitor backend job
-Write-Host "`n[INFO] Backend is running in background. Check http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host "`n[INFO] Backend is running in background. Check http://localhost:8001/docs" -ForegroundColor Cyan
 Write-Host "[INFO] Frontend is running in a separate window." -ForegroundColor Cyan
 Write-Host "`nTo stop:" -ForegroundColor Yellow
 Write-Host "  1. Press Ctrl+C in this window (stops backend)" -ForegroundColor White

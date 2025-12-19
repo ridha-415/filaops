@@ -4,9 +4,11 @@ FilaOps ERP - Configuration Management with pydantic-settings
 Provides validated, type-safe configuration from environment variables.
 All settings can be overridden via environment variables or .env file.
 """
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from decimal import Decimal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -297,6 +299,186 @@ class Settings(BaseSettings):
         default=True,
         description="Enable strict validation for MRP calculations (default: True)"
     )
+
+    # ===================
+    # Manufacturing Settings
+    # ===================
+    MACHINE_HOURLY_RATE: float = Field(
+        default=1.50,
+        description="Fully-burdened machine time cost per hour (depreciation + electricity + maintenance)"
+    )
+    MACHINE_TIME_SKU: str = Field(
+        default="MFG-MACHINE-TIME",
+        description="SKU for machine time manufacturing overhead product"
+    )
+    LEGACY_MACHINE_TIME_SKU: str = Field(
+        default="SVC-MACHINE-TIME",
+        description="Legacy SKU for machine time (for migration)"
+    )
+
+    # ===================
+    # Pricing Settings
+    # ===================
+    # Material costs per gram (can be overridden via env vars as JSON)
+    MATERIAL_COST_PLA: float = Field(default=0.017, description="PLA cost per gram ($16.99/kg)")
+    MATERIAL_COST_PETG: float = Field(default=0.017, description="PETG cost per gram ($16.99/kg)")
+    MATERIAL_COST_ABS: float = Field(default=0.020, description="ABS cost per gram ($20.00/kg)")
+    MATERIAL_COST_ASA: float = Field(default=0.020, description="ASA cost per gram ($20.00/kg)")
+    MATERIAL_COST_TPU: float = Field(default=0.033, description="TPU cost per gram ($33.00/kg)")
+
+    # Markup multipliers (material-specific)
+    MARKUP_PLA: float = Field(default=3.5, description="PLA markup multiplier")
+    MARKUP_PETG: float = Field(default=3.5, description="PETG markup multiplier")
+    MARKUP_ABS: float = Field(default=4.0, description="ABS markup multiplier")
+    MARKUP_ASA: float = Field(default=4.0, description="ASA markup multiplier")
+    MARKUP_TPU: float = Field(default=4.5, description="TPU markup multiplier")
+
+    # Business rules
+    MINIMUM_ORDER_VALUE: float = Field(default=10.00, description="Minimum order value in dollars")
+    AUTO_APPROVE_THRESHOLD: float = Field(default=50.00, description="Auto-approve quotes under this amount")
+    QUOTE_EXPIRATION_DAYS: int = Field(default=30, description="Quote validity period in days")
+
+    # ABS/ASA size limits (mm) - require manual review if exceeded
+    ABS_ASA_MAX_X_MM: int = Field(default=200, description="Max X dimension for ABS/ASA auto-approval")
+    ABS_ASA_MAX_Y_MM: int = Field(default=200, description="Max Y dimension for ABS/ASA auto-approval")
+    ABS_ASA_MAX_Z_MM: int = Field(default=100, description="Max Z dimension for ABS/ASA auto-approval")
+
+    # Delivery estimation
+    PRINTING_HOURS_PER_DAY: int = Field(default=8, description="Assumed productive printing hours per day")
+    PROCESSING_BUFFER_DAYS: int = Field(default=2, description="Days added for QC, packaging, shipping")
+    RUSH_48H_REDUCTION_DAYS: int = Field(default=3, description="Days reduced for 48h rush orders")
+    RUSH_24H_REDUCTION_DAYS: int = Field(default=4, description="Days reduced for 24h rush orders")
+
+    # Quantity discounts (JSON format: [{"min_quantity": 100, "discount": 0.30}, ...])
+    QUANTITY_DISCOUNTS: Optional[str] = Field(
+        default=None,
+        description="Quantity discounts as JSON. Default: 10% at 10+, 20% at 50+, 30% at 100+"
+    )
+
+    # Finish costs (JSON format: {"standard": 0.00, "cleanup": 3.00, ...})
+    FINISH_COSTS: Optional[str] = Field(
+        default=None,
+        description="Finish upcharges as JSON. Default: standard=0, cleanup=3, sanded=8, painted=20"
+    )
+
+    # Rush multipliers (JSON format: {"standard": 1.0, "fast": 1.25, ...})
+    RUSH_MULTIPLIERS: Optional[str] = Field(
+        default=None,
+        description="Rush order multipliers as JSON. Default: standard=1.0, fast=1.25, rush_48h=1.5, rush_24h=2.0"
+    )
+
+    # Printer fleet configuration (JSON format)
+    PRINTER_FLEET: Optional[str] = Field(
+        default=None,
+        description="Printer fleet configuration as JSON. Default: 4 printers (1 P1S, 3 A1)"
+    )
+
+    @field_validator("QUANTITY_DISCOUNTS", "FINISH_COSTS", "RUSH_MULTIPLIERS", "PRINTER_FLEET", mode="before")
+    @classmethod
+    def parse_json_string(cls, v):
+        """Parse JSON string to dict/list, or return None if not provided"""
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return None
+        return v
+
+    @property
+    def material_costs(self) -> Dict[str, Decimal]:
+        """Get material costs dictionary"""
+        return {
+            'PLA': Decimal(str(self.MATERIAL_COST_PLA)),
+            'PETG': Decimal(str(self.MATERIAL_COST_PETG)),
+            'ABS': Decimal(str(self.MATERIAL_COST_ABS)),
+            'ASA': Decimal(str(self.MATERIAL_COST_ASA)),
+            'TPU': Decimal(str(self.MATERIAL_COST_TPU)),
+        }
+
+    @property
+    def markup_multipliers(self) -> Dict[str, Decimal]:
+        """Get markup multipliers dictionary"""
+        return {
+            'PLA': Decimal(str(self.MARKUP_PLA)),
+            'PETG': Decimal(str(self.MARKUP_PETG)),
+            'ABS': Decimal(str(self.MARKUP_ABS)),
+            'ASA': Decimal(str(self.MARKUP_ASA)),
+            'TPU': Decimal(str(self.MARKUP_TPU)),
+        }
+
+    @property
+    def quantity_discounts(self) -> List[Dict[str, Any]]:
+        """Get quantity discounts list, with defaults if not configured"""
+        if self.QUANTITY_DISCOUNTS and isinstance(self.QUANTITY_DISCOUNTS, list):
+            return [{'min_quantity': d['min_quantity'], 'discount': Decimal(str(d['discount']))} for d in self.QUANTITY_DISCOUNTS]  # type: ignore[union-attr]
+        return [
+            {'min_quantity': 100, 'discount': Decimal('0.30')},
+            {'min_quantity': 50, 'discount': Decimal('0.20')},
+            {'min_quantity': 10, 'discount': Decimal('0.10')},
+        ]
+
+    @property
+    def finish_costs(self) -> Dict[str, Decimal]:
+        """Get finish costs dictionary, with defaults if not configured"""
+        if self.FINISH_COSTS and isinstance(self.FINISH_COSTS, dict):
+            return {k: Decimal(str(v)) for k, v in self.FINISH_COSTS.items()}  # type: ignore[union-attr]
+        return {
+            'standard': Decimal('0.00'),
+            'cleanup': Decimal('3.00'),
+            'sanded': Decimal('8.00'),
+            'painted': Decimal('20.00'),
+            'custom': Decimal('0.00'),
+        }
+
+    @property
+    def rush_multipliers(self) -> Dict[str, Decimal]:
+        """Get rush multipliers dictionary, with defaults if not configured"""
+        if self.RUSH_MULTIPLIERS and isinstance(self.RUSH_MULTIPLIERS, dict):
+            return {k: Decimal(str(v)) for k, v in self.RUSH_MULTIPLIERS.items()}  # type: ignore[union-attr]
+        return {
+            'standard': Decimal('1.0'),
+            'fast': Decimal('1.25'),
+            'rush_48h': Decimal('1.5'),
+            'rush_24h': Decimal('2.0'),
+        }
+
+    @property
+    def printer_fleet_config(self) -> Dict[str, Any]:
+        """Get printer fleet configuration, with defaults if not configured"""
+        if self.PRINTER_FLEET and isinstance(self.PRINTER_FLEET, dict):
+            return self.PRINTER_FLEET  # type: ignore[return-value]
+        return {
+            'total_printers': 4,
+            'printers': [
+                {'model': 'Bambu P1S', 'quantity': 1},
+                {'model': 'Bambu A1', 'quantity': 3},
+            ],
+            'daily_capacity_hours': 80,
+            'average_hours_per_printer_per_day': 20
+        }
+
+    @property
+    def abs_asa_size_limits(self) -> Dict[str, int]:
+        """Get ABS/ASA size limits"""
+        return {
+            'max_x_mm': self.ABS_ASA_MAX_X_MM,
+            'max_y_mm': self.ABS_ASA_MAX_Y_MM,
+            'max_z_mm': self.ABS_ASA_MAX_Z_MM,
+        }
+
+    @property
+    def delivery_estimation(self) -> Dict[str, Any]:
+        """Get delivery estimation parameters"""
+        return {
+            'printing_hours_per_day': self.PRINTING_HOURS_PER_DAY,
+            'processing_buffer_days': self.PROCESSING_BUFFER_DAYS,
+            'rush_reduction_days': {
+                'rush_48h': self.RUSH_48H_REDUCTION_DAYS,
+                'rush_24h': self.RUSH_24H_REDUCTION_DAYS,
+            }
+        }
 
     @property
     def is_production(self) -> bool:

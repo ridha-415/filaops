@@ -1784,7 +1784,7 @@ def _build_item_response(item: Product, db: Session) -> ItemResponse:
     allocated = float(inv.allocated) if inv else 0
 
     # Get BOM count
-    bom_count = db.query(BOM).filter(BOM.product_id == item.id, BOM.active == True)  # noqa: E712.count()
+    bom_count = db.query(BOM).filter(BOM.product_id == item.id, BOM.active == True).count()  # noqa: E712
 
     return ItemResponse(
         id=item.id,

@@ -23,10 +23,10 @@ if (Test-Path "backend\venv") {
 
 # Start backend
 Write-Host "`n[BACKEND] Starting FastAPI server..." -ForegroundColor Yellow
-Write-Host "API will be available at: http://localhost:8000" -ForegroundColor White
-Write-Host "API Docs at: http://localhost:8000/docs" -ForegroundColor White
+Write-Host "API will be available at: http://localhost:8001" -ForegroundColor White
+Write-Host "API Docs at: http://localhost:8001/docs" -ForegroundColor White
 Write-Host "`nPress Ctrl+C to stop the server`n" -ForegroundColor Yellow
 
 Set-Location backend
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 

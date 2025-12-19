@@ -140,7 +140,7 @@ app = FastAPI(
 
 # Set up rate limiter state
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Security headers middleware (outermost - runs first on response)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -258,6 +258,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=True
     )

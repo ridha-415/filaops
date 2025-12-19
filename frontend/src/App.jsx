@@ -6,6 +6,8 @@ import Onboarding from "./pages/Onboarding";
 
 // Admin pages
 import AdminLogin from "./pages/admin/AdminLogin";
+import ForgotPassword from "./pages/admin/ForgotPassword";
+import ResetPassword from "./pages/admin/ResetPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminOrders from "./pages/admin/AdminOrders";
 import OrderDetail from "./pages/admin/OrderDetail";
@@ -36,58 +38,60 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-      <Routes>
-        {/* Redirect root to admin */}
-        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Routes>
+          {/* Redirect root to admin */}
+          <Route path="/" element={<Navigate to="/admin" replace />} />
 
-        {/* First-run setup */}
-        <Route path="/setup" element={<Setup />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+          {/* First-run setup */}
+          <Route path="/setup" element={<Setup />} />
+          <Route path="/onboarding" element={<Onboarding />} />
 
-        {/* Auth */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route
-          path="/admin/password-reset/:action/:token"
-          element={<AdminPasswordResetApproval />}
-        />
-
-        {/* Public Pricing Page */}
-        <Route path="/pricing" element={<Pricing />} />
-
-        {/* ERP Admin Panel */}
-        <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="orders/:orderId" element={<OrderDetail />} />
-          <Route path="quotes" element={<AdminQuotes />} />
-          <Route path="payments" element={<AdminPayments />} />
-          <Route path="customers" element={<AdminCustomers />} />
-          <Route path="bom" element={<AdminBOM />} />
+          {/* Auth */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route
-            path="products"
-            element={<Navigate to="/admin/items" replace />}
+            path="/admin/password-reset/:action/:token"
+            element={<AdminPasswordResetApproval />}
           />
-          <Route path="items" element={<AdminItems />} />
-          <Route path="purchasing" element={<AdminPurchasing />} />
-          <Route path="manufacturing" element={<AdminManufacturing />} />
-          <Route path="production" element={<AdminProduction />} />
-          <Route path="shipping" element={<AdminShipping />} />
-          <Route path="analytics" element={<AdminAnalytics />} />
-          <Route path="materials/import" element={<AdminMaterialImport />} />
-          <Route path="orders/import" element={<AdminOrderImport />} />
-          {/* <Route path="license" element={<AdminLicense />} />  Disabled until ready */}
-          <Route
-            path="inventory/transactions"
-            element={<AdminInventoryTransactions />}
-          />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="locations" element={<AdminLocations />} />
-          <Route path="accounting" element={<AdminAccounting />} />
-          <Route path="printers" element={<AdminPrinters />} />
-          <Route path="scrap-reasons" element={<AdminScrapReasons />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
-      </Routes>
+
+          {/* Public Pricing Page */}
+          <Route path="/pricing" element={<Pricing />} />
+
+          {/* ERP Admin Panel */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="orders/:orderId" element={<OrderDetail />} />
+            <Route path="quotes" element={<AdminQuotes />} />
+            <Route path="payments" element={<AdminPayments />} />
+            <Route path="customers" element={<AdminCustomers />} />
+            <Route path="bom" element={<AdminBOM />} />
+            <Route
+              path="products"
+              element={<Navigate to="/admin/items" replace />}
+            />
+            <Route path="items" element={<AdminItems />} />
+            <Route path="purchasing" element={<AdminPurchasing />} />
+            <Route path="manufacturing" element={<AdminManufacturing />} />
+            <Route path="production" element={<AdminProduction />} />
+            <Route path="shipping" element={<AdminShipping />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="materials/import" element={<AdminMaterialImport />} />
+            <Route path="orders/import" element={<AdminOrderImport />} />
+            {/* <Route path="license" element={<AdminLicense />} />  Disabled until ready */}
+            <Route
+              path="inventory/transactions"
+              element={<AdminInventoryTransactions />}
+            />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="locations" element={<AdminLocations />} />
+            <Route path="accounting" element={<AdminAccounting />} />
+            <Route path="printers" element={<AdminPrinters />} />
+            <Route path="scrap-reasons" element={<AdminScrapReasons />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
+        </Routes>
       </ToastProvider>
     </BrowserRouter>
   );

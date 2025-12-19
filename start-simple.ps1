@@ -26,7 +26,7 @@ Write-Host "`n[BACKEND] Starting FastAPI server in new window..." -ForegroundCol
 $backendScript = @"
 `$env:DB_NAME = 'FilaOps'
 Set-Location '$PWD\backend'
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 pause
 "@
 $backendScript | Out-File -FilePath "$env:TEMP\start-backend-temp.ps1" -Encoding UTF8
@@ -52,8 +52,8 @@ pause
 Write-Host "`n============================================================" -ForegroundColor Cyan
 Write-Host "FilaOps is starting up!" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Backend API:  http://localhost:8000" -ForegroundColor White
-Write-Host "API Docs:     http://localhost:8000/docs" -ForegroundColor White
+Write-Host "Backend API:  http://localhost:8001" -ForegroundColor White
+Write-Host "API Docs:     http://localhost:8001/docs" -ForegroundColor White
 Write-Host "Frontend:     http://localhost:5173" -ForegroundColor White
 Write-Host "`nBoth servers are running in separate windows." -ForegroundColor Yellow
 Write-Host "Close those windows to stop the servers." -ForegroundColor Yellow

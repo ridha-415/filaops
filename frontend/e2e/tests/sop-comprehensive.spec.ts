@@ -108,15 +108,15 @@ const test = baseTest.extend<{ authPage: Page }>({
       await passwordField.fill(TEST_PASSWORD);
 
       const loginBtn = page.locator('button[type="submit"]');
-      await loginBtn.click();
-
-      // Wait for login to complete - look for dashboard content or URL change
-      try {
-        // Wait for URL to NOT contain 'login' anymore
-        await page.waitForFunction(() => !window.location.href.includes('/login'), { timeout: 10000 });
-      } catch (e) {
-        console.log('Login wait timeout - current URL:', page.url());
-      }
+      
+      // Submit and wait for navigation to complete
+      await Promise.all([
+        page.waitForURL('/admin**', { timeout: 15000 }),
+        loginBtn.click()
+      ]);
+      
+      // Wait for page to fully load
+      await page.waitForLoadState('networkidle');
     }
 
     await use(page);

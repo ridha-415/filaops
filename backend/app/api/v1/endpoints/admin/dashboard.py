@@ -327,7 +327,7 @@ async def get_dashboard_summary(
         .filter(BOM.active == True)  # noqa: E712
         .count()
     )
-    active_boms = db.query(BOM).filter(BOM.active == True)  # noqa: E712.count()
+    active_boms = db.query(BOM).filter(BOM.active == True).count()  # noqa: E712
 
     # Low Stock Items (below reorder point + MRP shortages)
     # Use the same logic as /items/low-stock endpoint - just get the count

@@ -5,11 +5,11 @@
  * These tests verify the actual numbers and logic work correctly.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/auth';
 
 test.describe('Order Calculations', () => {
   
-  test('calculates order total correctly', async ({ page }) => {
+  test('calculates order total correctly', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     await page.getByRole('button', { name: /create.*order/i }).click();
     
@@ -55,7 +55,7 @@ test.describe('Order Calculations', () => {
     expect(displayedTotal).toBeCloseTo(expectedTotal, 2);
   });
 
-  test('updates totals when quantity changes', async ({ page }) => {
+  test('updates totals when quantity changes', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     await page.getByRole('button', { name: /create.*order/i }).click();
     
@@ -74,7 +74,7 @@ test.describe('Order Calculations', () => {
     expect(newTotal).not.toBe(initialTotal);
   });
 
-  test('applies tax correctly', async ({ page }) => {
+  test('applies tax correctly', async ({ authenticatedPage: page }) => {
     // If you have tax calculation
     await page.goto('/admin/orders');
     
@@ -100,7 +100,7 @@ test.describe('Order Calculations', () => {
 
 test.describe('Inventory Impact', () => {
   
-  test('decrements inventory when order created', async ({ page }) => {
+  test('decrements inventory when order created', async ({ authenticatedPage: page }) => {
     // Get initial inventory level
     await page.goto('/admin/inventory');
     
@@ -127,7 +127,7 @@ test.describe('Inventory Impact', () => {
     expect(newQtyNum).toBe(initialQtyNum - 5);
   });
 
-  test('prevents order if insufficient inventory', async ({ page }) => {
+  test('prevents order if insufficient inventory', async ({ authenticatedPage: page }) => {
     // Find product with low inventory
     await page.goto('/admin/inventory');
     
@@ -153,7 +153,7 @@ test.describe('Inventory Impact', () => {
 
 test.describe('BOM & MRP Logic', () => {
   
-  test('BOM explosion calculates material requirements correctly', async ({ page }) => {
+  test('BOM explosion calculates material requirements correctly', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/mrp');
     
     // Create production order for assembly (e.g., "Printed Part with Hardware")
@@ -177,7 +177,7 @@ test.describe('BOM & MRP Logic', () => {
     }
   });
 
-  test('MRP calculates net requirements (gross - on hand)', async ({ page }) => {
+  test('MRP calculates net requirements (gross - on hand)', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/mrp');
     
     // Get material with known inventory
@@ -202,7 +202,7 @@ test.describe('BOM & MRP Logic', () => {
     expect(netRequirementNum).toBe(grossRequirement - onHandNum);
   });
 
-  test('multi-level BOM explosion works correctly', async ({ page }) => {
+  test('multi-level BOM explosion works correctly', async ({ authenticatedPage: page }) => {
     // Test nested assemblies
     // Example: Car Kit contains Wheel Assembly, Wheel Assembly contains Wheel + Tire
     
@@ -235,7 +235,7 @@ test.describe('BOM & MRP Logic', () => {
 
 test.describe('Business Rules Enforcement', () => {
   
-  test('cannot ship order without inventory allocation', async ({ page }) => {
+  test('cannot ship order without inventory allocation', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     
     // Find order ready to ship
@@ -256,7 +256,7 @@ test.describe('Business Rules Enforcement', () => {
     }
   });
 
-  test('production order cannot start without materials', async ({ page }) => {
+  test('production order cannot start without materials', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/production');
     
     // Find released WO
@@ -277,7 +277,7 @@ test.describe('Business Rules Enforcement', () => {
     }
   });
 
-  test('validates minimum order quantity', async ({ page }) => {
+  test('validates minimum order quantity', async ({ authenticatedPage: page }) => {
     // If product has MOQ = 10
     await page.goto('/admin/orders');
     await page.getByRole('button', { name: /create.*order/i }).click();
@@ -298,7 +298,7 @@ test.describe('Business Rules Enforcement', () => {
     }
   });
 
-  test('prevents negative inventory', async ({ page }) => {
+  test('prevents negative inventory', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/inventory');
     
     // Find product with low stock
@@ -319,7 +319,7 @@ test.describe('Business Rules Enforcement', () => {
 
 test.describe('Quote to Order Conversion', () => {
   
-  test('converts quote to order with correct pricing', async ({ page }) => {
+  test('converts quote to order with correct pricing', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/quotes');
     
     // Find approved quote
@@ -348,7 +348,7 @@ test.describe('Quote to Order Conversion', () => {
     }
   });
 
-  test('quote pricing includes material costs', async ({ page }) => {
+  test('quote pricing includes material costs', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/quotes/new');
     
     // Upload STL file
@@ -378,7 +378,7 @@ test.describe('Quote to Order Conversion', () => {
 
 test.describe('Data Accuracy After Operations', () => {
   
-  test('order data persists after page reload', async ({ page }) => {
+  test('order data persists after page reload', async ({ authenticatedPage: page }) => {
     // Create order
     await page.goto('/admin/orders');
     await page.getByRole('button', { name: /create.*order/i }).click();
@@ -401,7 +401,7 @@ test.describe('Data Accuracy After Operations', () => {
     await expect(page.getByText('90210')).toBeVisible();
   });
 
-  test('status changes are reflected in all views', async ({ page }) => {
+  test('status changes are reflected in all views', async ({ authenticatedPage: page }) => {
     // Change order status
     await page.goto('/admin/orders');
     const order = page.locator('tr').filter({ hasText: /draft/i }).first();

@@ -42,7 +42,7 @@ async function login(page: Page) {
     await page.fill('input[type="email"]', TEST_EMAIL);
     await page.fill('input[type="password"]', TEST_PASSWORD);
     await page.click('button[type="submit"]');
-    await page.waitForFunction(() => !window.location.href.includes('/login'), { timeout: 20000 });
+    await page.waitForURL('/admin**', { timeout: 20000 });
   }
 
   // Dismiss promotional modal if present

@@ -38,6 +38,8 @@ That's it. Database, API, and UI are all pre-configured.
 
 📖 **[Full Installation Guide](INSTALL.md)** for manual setup or troubleshooting.
 
+> **Note for developers:** There's also a `docker-compose.dev.yml` file for local development. End users should use `docker-compose.yml` (the default).
+
 ---
 
 ## What's Included
@@ -118,6 +120,7 @@ The community version uses **development mode builds** for the frontend to maxim
 |---|---|
 | **[INSTALL.md](INSTALL.md)** | Installation guide (Docker & manual) |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | System overview and workflows |
+| **[docs/EMAIL_CONFIGURATION.md](docs/EMAIL_CONFIGURATION.md)** | Email/SMTP setup guide |
 | **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | Known issues and workarounds |
 | **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Common issues and fixes |
 | **[FAQ.md](FAQ.md)** | Frequently asked questions |

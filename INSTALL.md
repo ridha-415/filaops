@@ -98,6 +98,8 @@ cd ~/filaops
 docker-compose up -d
 ```
 
+> **Note:** If you see a file called `docker-compose.dev.yml` in the folder, ignore it - that's only for developers. Use `docker-compose.yml` (the default).
+
 **First startup takes 3-5 minutes** as Docker downloads and builds everything.
 
 You'll see output like:

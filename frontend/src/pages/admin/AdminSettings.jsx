@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { API_URL } from "../../config/api";
 import { useToast } from "../../components/Toast";
+import { useVersionCheck } from "../../hooks/useVersionCheck";
+import { getCurrentVersion, formatVersion } from "../../utils/version";
 
 // Format phone number as (XXX) XXX-XXXX
 const formatPhoneNumber = (value) => {
@@ -18,6 +20,13 @@ const AdminSettings = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef(null);
+  const {
+    latestVersion,
+    updateAvailable,
+    loading: checkingUpdate,
+    checkForUpdates,
+  } = useVersionCheck();
+  const [checkingManually, setCheckingManually] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -42,6 +51,7 @@ const AdminSettings = () => {
 
   useEffect(() => {
     fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSettings = async () => {
@@ -78,16 +88,23 @@ const AdminSettings = () => {
           quote_terms: data.quote_terms || "",
           quote_footer: data.quote_footer || "",
         });
-        } else {
+      } else {
         const errData = await response.json().catch(() => ({}));
-        toast.error(errData.detail || `Error ${response.status}: Failed to load settings`);
+        toast.error(
+          errData.detail || `Error ${response.status}: Failed to load settings`
+        );
       }
-    } catch (err) {
-      toast.error("Failed to load settings: " + err.message);
+    } catch (error) {
+      toast.error("Failed to load settings: " + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -114,7 +131,9 @@ const AdminSettings = () => {
           tax_rate_percent: form.tax_rate_percent
             ? parseFloat(form.tax_rate_percent)
             : null,
-          default_quote_validity_days: parseInt(form.default_quote_validity_days),
+          default_quote_validity_days: parseInt(
+            form.default_quote_validity_days
+          ),
         }),
       });
 
@@ -123,11 +142,11 @@ const AdminSettings = () => {
         setSettings(data);
         toast.success("Settings saved successfully!");
       } else {
-        const err = await response.json();
-        toast.error(err.detail || "Failed to save settings");
+        const errData = await response.json();
+        toast.error(errData.detail || "Failed to save settings");
       }
-    } catch (err) {
-      toast.error("Failed to save settings");
+    } catch (error) {
+      toast.error("Failed to save settings: " + error.message);
     } finally {
       setSaving(false);
     }
@@ -154,11 +173,11 @@ const AdminSettings = () => {
         toast.success("Logo uploaded successfully!");
         fetchSettings();
       } else {
-        const err = await response.json();
-        toast.error(err.detail || "Failed to upload logo");
+        const errData = await response.json();
+        toast.error(errData.detail || "Failed to upload logo");
       }
-    } catch (err) {
-      toast.error("Failed to upload logo");
+    } catch (error) {
+      toast.error("Failed to upload logo: " + error.message);
     } finally {
       setUploadingLogo(false);
     }
@@ -178,8 +197,8 @@ const AdminSettings = () => {
         toast.success("Logo deleted successfully!");
         fetchSettings();
       }
-    } catch (err) {
-      toast.error("Failed to delete logo");
+    } catch (error) {
+      toast.error("Failed to delete logo: " + error.message);
     }
   };
 
@@ -199,7 +218,9 @@ const AdminSettings = () => {
       <form onSubmit={handleSave} className="space-y-6">
         {/* Company Logo */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Company Logo</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Company Logo
+          </h2>
           <div className="flex items-center gap-6">
             {settings?.has_logo ? (
               <div className="relative">
@@ -235,7 +256,11 @@ const AdminSettings = () => {
                 disabled={uploadingLogo}
                 className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                {uploadingLogo ? "Uploading..." : settings?.has_logo ? "Change Logo" : "Upload Logo"}
+                {uploadingLogo
+                  ? "Uploading..."
+                  : settings?.has_logo
+                  ? "Change Logo"
+                  : "Upload Logo"}
               </button>
               <p className="text-sm text-gray-400 mt-2">
                 PNG, JPEG, GIF, or WebP. Max 2MB.
@@ -353,7 +378,12 @@ const AdminSettings = () => {
                 type="tel"
                 name="company_phone"
                 value={form.company_phone}
-                onChange={(e) => setForm((prev) => ({ ...prev, company_phone: formatPhoneNumber(e.target.value) }))}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    company_phone: formatPhoneNumber(e.target.value),
+                  }))
+                }
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
                 placeholder="(555) 123-4567"
               />
@@ -391,7 +421,9 @@ const AdminSettings = () => {
 
         {/* Tax Settings */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Tax Settings</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Tax Settings
+          </h2>
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <input
@@ -463,7 +495,9 @@ const AdminSettings = () => {
 
         {/* Quote Settings */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Quote Settings</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Quote Settings
+          </h2>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -509,6 +543,77 @@ const AdminSettings = () => {
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
                 placeholder="Thank you for your business! Contact us at..."
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Version & Updates */}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Version & Updates
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-400 mb-2">Current Version</p>
+              <p className="text-lg font-semibold text-white">
+                v{formatVersion(getCurrentVersion())}
+              </p>
+            </div>
+
+            {latestVersion && (
+              <div>
+                <p className="text-sm text-gray-400 mb-2">Latest Version</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-lg font-semibold text-white">
+                    v{formatVersion(latestVersion)}
+                  </p>
+                  {updateAvailable ? (
+                    <span className="px-2 py-1 bg-blue-600 text-blue-100 text-xs rounded-md">
+                      Update Available
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 bg-green-600 text-green-100 text-xs rounded-md">
+                      Up to Date
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setCheckingManually(true);
+                  await checkForUpdates(true);
+                  setCheckingManually(false);
+                  if (updateAvailable) {
+                    toast.success(
+                      `Update available: v${formatVersion(latestVersion)}`
+                    );
+                  } else {
+                    toast.success("You're running the latest version!");
+                  }
+                }}
+                disabled={checkingUpdate || checkingManually}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+              >
+                {checkingUpdate || checkingManually
+                  ? "Checking..."
+                  : "Check for Updates"}
+              </button>
+              {latestVersion && updateAvailable && (
+                <a
+                  href={`https://github.com/Blb3D/filaops/releases/tag/v${formatVersion(
+                    latestVersion
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 text-sm underline"
+                >
+                  View Release Notes
+                </a>
+              )}
             </div>
           </div>
         </div>

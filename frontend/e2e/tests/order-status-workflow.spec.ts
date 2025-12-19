@@ -12,17 +12,17 @@
  * - Auto-updates when WOs complete
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/auth';
 
 test.describe('Order Status Workflow', () => {
   
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
     // Navigate to orders page
     await page.goto('/admin/orders');
     await expect(page.getByText('Sales Orders')).toBeVisible();
   });
 
-  test('should create new order with draft status', async ({ page }) => {
+  test('should create new order with draft status', async ({ authenticatedPage: page }) => {
     // Click create order button
     await page.getByRole('button', { name: /create.*order/i }).click();
     
@@ -46,7 +46,7 @@ test.describe('Order Status Workflow', () => {
     await expect(page.getByText('pending')).toBeVisible(); // fulfillment_status
   });
 
-  test('should transition order through lifecycle', async ({ page }) => {
+  test('should transition order through lifecycle', async ({ authenticatedPage: page }) => {
     // Find first draft order
     const firstOrderRow = page.locator('tr').filter({ hasText: /draft/i }).first();
     await firstOrderRow.click();
@@ -67,7 +67,7 @@ test.describe('Order Status Workflow', () => {
     await expect(page.getByText('in_production')).toBeVisible();
   });
 
-  test('should handle fulfillment workflow', async ({ page }) => {
+  test('should handle fulfillment workflow', async ({ authenticatedPage: page }) => {
     // Find an order in ready_to_ship status
     await page.getByPlaceholder(/search|filter/i).fill('ready_to_ship');
     
@@ -102,7 +102,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should validate status transitions', async ({ page }) => {
+  test('should validate status transitions', async ({ authenticatedPage: page }) => {
     // Try invalid transition - should show error
     const draftOrder = page.locator('tr').filter({ hasText: /draft/i }).first();
     await draftOrder.click();
@@ -116,7 +116,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should show production orders linked to sales order', async ({ page }) => {
+  test('should show production orders linked to sales order', async ({ authenticatedPage: page }) => {
     // Find an order in production
     const prodOrder = page.locator('tr').filter({ hasText: /in_production/i }).first();
     await prodOrder.click();
@@ -135,7 +135,7 @@ test.describe('Order Status Workflow', () => {
     expect(hasStatus).toBeTruthy();
   });
 
-  test('should auto-update SO when all WOs complete', async ({ page }) => {
+  test('should auto-update SO when all WOs complete', async ({ authenticatedPage: page }) => {
     // Navigate to production page
     await page.goto('/admin/production');
     
@@ -156,7 +156,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should handle QC workflow', async ({ page }) => {
+  test('should handle QC workflow', async ({ authenticatedPage: page }) => {
     // Navigate to production
     await page.goto('/admin/production');
     
@@ -196,7 +196,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should display order history/events', async ({ page }) => {
+  test('should display order history/events', async ({ authenticatedPage: page }) => {
     // Open any order
     const firstOrder = page.locator('tr[data-order-id]').first();
     await firstOrder.click();
@@ -211,7 +211,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should filter orders by status', async ({ page }) => {
+  test('should filter orders by status', async ({ authenticatedPage: page }) => {
     // Test status filters
     const statuses = ['draft', 'confirmed', 'in_production', 'ready_to_ship', 'shipped'];
     
@@ -231,7 +231,7 @@ test.describe('Order Status Workflow', () => {
     }
   });
 
-  test('should show fulfillment status in order list', async ({ page }) => {
+  test('should show fulfillment status in order list', async ({ authenticatedPage: page }) => {
     // Fulfillment statuses should be visible in table
     const fulfillmentStatuses = ['pending', 'ready', 'picking', 'packing', 'shipped'];
     
@@ -246,7 +246,7 @@ test.describe('Order Status Workflow', () => {
     expect(hasAnyStatus).toBeTruthy();
   });
 
-  test('should prevent invalid status changes', async ({ page }) => {
+  test('should prevent invalid status changes', async ({ authenticatedPage: page }) => {
     // Find a shipped order
     const shippedOrder = page.locator('tr').filter({ hasText: /shipped/i }).first();
     
@@ -262,7 +262,7 @@ test.describe('Order Status Workflow', () => {
 
 test.describe('Order Creation Validation', () => {
   
-  test('should validate required fields', async ({ page }) => {
+  test('should validate required fields', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     
     // Skip test - wizard validation needs comprehensive testing
@@ -272,7 +272,7 @@ test.describe('Order Creation Validation', () => {
     await expect(page.getByText(/required|must.*provide/i)).toBeVisible();
   });
 
-  test('should calculate totals correctly', async ({ page }) => {
+  test('should calculate totals correctly', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     
     // Skip test - wizard totals calculation needs comprehensive testing
@@ -294,7 +294,7 @@ test.describe('Order Creation Validation', () => {
 
 test.describe('Bulk Operations', () => {
   
-  test('should bulk update order status', async ({ page }) => {
+  test('should bulk update order status', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     
     // Select multiple orders
@@ -319,7 +319,7 @@ test.describe('Bulk Operations', () => {
 
 test.describe('Performance', () => {
   
-  test('should load orders page quickly', async ({ page }) => {
+  test('should load orders page quickly', async ({ authenticatedPage: page }) => {
     const startTime = Date.now();
     await page.goto('/admin/orders');
     await expect(page.getByText('Sales Orders')).toBeVisible();
@@ -329,7 +329,7 @@ test.describe('Performance', () => {
     expect(loadTime).toBeLessThan(3000);
   });
 
-  test('should handle pagination', async ({ page }) => {
+  test('should handle pagination', async ({ authenticatedPage: page }) => {
     await page.goto('/admin/orders');
     
     // Check if pagination exists

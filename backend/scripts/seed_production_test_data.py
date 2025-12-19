@@ -31,6 +31,7 @@ if sys.platform == 'win32':
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.session import SessionLocal
+from app.core.settings import settings
 from app.models import (
     Product, BOM, BOMLine, WorkCenter, Machine, 
     ProductionOrder, Inventory, InventoryLocation,
@@ -359,7 +360,7 @@ def create_test_data():
                 "category": categories["packaging"],
                 "unit": "EA",
                 "procurement_type": "buy",
-                "standard_cost": Decimal("1.50"),
+                "standard_cost": Decimal(str(settings.MACHINE_HOURLY_RATE)),
                 "safety_stock": Decimal("50"),
                 "reorder_point": Decimal("100"),
                 "min_order_qty": Decimal("250"),

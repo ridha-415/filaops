@@ -6,150 +6,99 @@ for the customer portal quote engine.
 
 Based on business analysis date: 2025-11-24
 Approved pricing model: 3.5x-4.5x markup structure
+
+All configuration values are now loaded from Settings (environment variables).
+See backend/app/core/settings.py for configuration options.
 """
 
 from typing import Dict, List
 from decimal import Decimal
 
 from app.logging_config import get_logger
+from app.core.settings import settings
 
 logger = get_logger(__name__)
 
 
 # ============================================================================
-# MATERIAL COSTS (per gram)
+# MATERIAL COSTS (per gram) - Loaded from Settings
 # ============================================================================
 
-MATERIAL_COSTS: Dict[str, Decimal] = {
-    'PLA': Decimal('0.017'),      # $16.99/kg
-    'PETG': Decimal('0.017'),     # $16.99/kg
-    'ABS': Decimal('0.020'),      # $20.00/kg
-    'ASA': Decimal('0.020'),      # $20.00/kg
-    'TPU': Decimal('0.033'),      # $33.00/kg
-}
+MATERIAL_COSTS: Dict[str, Decimal] = settings.material_costs
 
 
 # ============================================================================
-# MARKUP MULTIPLIERS (material-specific)
+# MARKUP MULTIPLIERS (material-specific) - Loaded from Settings
 # ============================================================================
 
-# Different materials have different complexity/risk
-MARKUP_MULTIPLIERS: Dict[str, Decimal] = {
-    'PLA': Decimal('3.5'),   # Easiest to print, standard markup
-    'PETG': Decimal('3.5'),  # Similar to PLA
-    'ABS': Decimal('4.0'),   # Requires enclosure, higher failure rate
-    'ASA': Decimal('4.0'),   # Similar complexity to ABS
-    'TPU': Decimal('4.5'),   # Difficult, slow, specialty material
-}
+MARKUP_MULTIPLIERS: Dict[str, Decimal] = settings.markup_multipliers
 
 
 # ============================================================================
-# MACHINE COSTS
+# MACHINE COSTS - Loaded from Settings
 # ============================================================================
 
-MACHINE_HOURLY_RATE: Decimal = Decimal('1.50')  # Operating cost per printer hour
-
-
-# ============================================================================
-# PRINT FARM CAPACITY
-# ============================================================================
-
-PRINTER_FLEET = {
-    'total_printers': 4,
-    'printers': [
-        {'model': 'Bambu P1S', 'quantity': 1},
-        {'model': 'Bambu A1', 'quantity': 3},
-    ],
-    'daily_capacity_hours': 80,  # 4 printers × 20 hours/day
-    'average_hours_per_printer_per_day': 20
-}
+MACHINE_HOURLY_RATE: Decimal = Decimal(str(settings.MACHINE_HOURLY_RATE))
 
 
 # ============================================================================
-# QUANTITY DISCOUNTS
+# PRINT FARM CAPACITY - Loaded from Settings
 # ============================================================================
 
-# Applied in descending order (highest quantity first)
-QUANTITY_DISCOUNTS: List[Dict] = [
-    {'min_quantity': 100, 'discount': Decimal('0.30')},  # 30% off at 100+
-    {'min_quantity': 50, 'discount': Decimal('0.20')},   # 20% off at 50-99
-    {'min_quantity': 10, 'discount': Decimal('0.10')},   # 10% off at 10-49
-]
+PRINTER_FLEET = settings.printer_fleet_config
 
 
 # ============================================================================
-# FINISH OPTIONS & UPCHARGES
+# QUANTITY DISCOUNTS - Loaded from Settings
 # ============================================================================
 
-FINISH_COSTS: Dict[str, Decimal] = {
-    'standard': Decimal('0.00'),    # As-printed, no post-processing
-    'cleanup': Decimal('3.00'),     # Remove supports, basic cleanup (5-10 min)
-    'sanded': Decimal('8.00'),      # Sand smooth (20-30 min)
-    'painted': Decimal('20.00'),    # Prime + single color paint (45-60 min)
-    'custom': Decimal('0.00'),      # Requires custom quote
-}
+QUANTITY_DISCOUNTS: List[Dict] = settings.quantity_discounts
 
 
 # ============================================================================
-# RUSH ORDER MULTIPLIERS
+# FINISH OPTIONS & UPCHARGES - Loaded from Settings
 # ============================================================================
 
-RUSH_MULTIPLIERS: Dict[str, Decimal] = {
-    'standard': Decimal('1.0'),    # 5-7 days, normal queue
-    'fast': Decimal('1.25'),       # 3-4 days, +25% surcharge
-    'rush_48h': Decimal('1.5'),    # 48 hours, +50% surcharge
-    'rush_24h': Decimal('2.0'),    # 24 hours, +100% surcharge (double price)
-}
+FINISH_COSTS: Dict[str, Decimal] = settings.finish_costs
 
 
 # ============================================================================
-# BUSINESS RULES
+# RUSH ORDER MULTIPLIERS - Loaded from Settings
 # ============================================================================
 
-MINIMUM_ORDER_VALUE: Decimal = Decimal('10.00')  # $10 minimum order
-MAX_FILE_SIZE_MB: int = 100  # Maximum STL file size
-AUTO_APPROVE_THRESHOLD: Decimal = Decimal('50.00')  # Auto-approve if under $50
-
-# Quote validity period
-QUOTE_EXPIRATION_DAYS: int = 30  # Quotes valid for 30 days
+RUSH_MULTIPLIERS: Dict[str, Decimal] = settings.rush_multipliers
 
 
 # ============================================================================
-# AUTO-APPROVE RULES (ABS/ASA RESTRICTIONS)
+# BUSINESS RULES - Loaded from Settings
 # ============================================================================
 
-# ABS/ASA require manual review if exceeding these dimensions
-ABS_ASA_SIZE_LIMITS = {
-    'max_x_mm': 200,  # Max X dimension (mm)
-    'max_y_mm': 200,  # Max Y dimension (mm)
-    'max_z_mm': 100,  # Max Z height (mm)
-}
+MINIMUM_ORDER_VALUE: Decimal = Decimal(str(settings.MINIMUM_ORDER_VALUE))
+MAX_FILE_SIZE_MB: int = settings.MAX_FILE_SIZE_MB
+AUTO_APPROVE_THRESHOLD: Decimal = Decimal(str(settings.AUTO_APPROVE_THRESHOLD))
+QUOTE_EXPIRATION_DAYS: int = settings.QUOTE_EXPIRATION_DAYS
 
 
 # ============================================================================
-# CONTACT & NOTIFICATIONS
+# AUTO-APPROVE RULES (ABS/ASA RESTRICTIONS) - Loaded from Settings
 # ============================================================================
 
-# Import from settings to avoid hardcoding business email in repo
-from app.core.settings import settings
+ABS_ASA_SIZE_LIMITS = settings.abs_asa_size_limits
+
+
+# ============================================================================
+# CONTACT & NOTIFICATIONS - Loaded from Settings
+# ============================================================================
 
 BUSINESS_EMAIL: str = settings.BUSINESS_EMAIL
 BUSINESS_NAME: str = settings.BUSINESS_NAME
 
 
 # ============================================================================
-# DELIVERY ESTIMATION
+# DELIVERY ESTIMATION - Loaded from Settings
 # ============================================================================
 
-# Standard delivery estimation parameters
-DELIVERY_ESTIMATION = {
-    'printing_hours_per_day': 8,    # Assume 8 hours of productive printing per day
-    'processing_buffer_days': 2,    # Add 2 days for QC, packaging, shipping
-    'rush_reduction_days': {        # Reduce delivery time for rush orders
-        'rush_48h': 3,
-        'rush_24h': 4,
-    }
-}
+DELIVERY_ESTIMATION = settings.delivery_estimation
 
 
 # ============================================================================

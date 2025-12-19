@@ -1,3 +1,5 @@
+# pyright: reportArgumentType=false
+# pyright: reportAssignmentType=false
 """
 Admin Fulfillment Endpoints
 
@@ -32,6 +34,7 @@ from app.models.inventory import Inventory, InventoryTransaction, InventoryLocat
 # MaterialInventory removed - using unified Inventory table (Phase 1.4)
 from app.services.shipping_service import shipping_service
 from app.api.v1.deps import get_current_staff_user
+from app.core.settings import settings
 
 router = APIRouter(prefix="/fulfillment", tags=["Admin - Fulfillment"])
 
@@ -363,7 +366,7 @@ async def get_production_order_details(
     
     # Get additional details
     product = db.query(Product).filter(Product.id == po.product_id).first() if po.product_id else None
-    bom = db.query(BOM).filter(BOM.product_id == po.product_id, BOM.active == True)  # noqa: E712.first() if po.product_id else None
+    bom = db.query(BOM).filter(BOM.product_id == po.product_id, BOM.active == True).first() if po.product_id else None  # noqa: E712
     
     # Get quote details
     quote = db.query(Quote).filter(Quote.product_id == po.product_id).first() if po.product_id else None
@@ -811,7 +814,7 @@ async def complete_print(
                     actual_hours = estimated_hours
 
                 # Calculate cost
-                hourly_rate = float(component.cost) if component.cost else 1.50
+                hourly_rate = float(component.cost) if component.cost else float(settings.MACHINE_HOURLY_RATE)
                 machine_cost = actual_hours * hourly_rate
 
                 # Get printer info if assigned

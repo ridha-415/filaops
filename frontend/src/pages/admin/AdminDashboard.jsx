@@ -121,7 +121,7 @@ export default function AdminDashboard() {
 
   if (error) {
     return (
-      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400">
+      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-red-400 flex flex-col">
         <h3 className="font-semibold mb-2">Error loading dashboard</h3>
         <p className="text-sm">{error}</p>
         <button

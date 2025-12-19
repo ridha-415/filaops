@@ -7,7 +7,6 @@ from decimal import Decimal
 from typing import Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import Optional, Tuple
 
 from app.models.uom import UnitOfMeasure
 

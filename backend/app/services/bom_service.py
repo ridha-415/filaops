@@ -1,3 +1,5 @@
+# pyright: reportArgumentType=false
+# pyright: reportAssignmentType=false
 """
 BOM Auto-Creation Service
 
@@ -26,13 +28,14 @@ from app.services.uom_service import (
     convert_quantity,
 )
 
-# Machine time costing constants
-# These can be moved to system_settings table later for runtime configuration
-MACHINE_TIME_SKU = "MFG-MACHINE-TIME"  # Manufacturing overhead cost
-MACHINE_HOURLY_RATE = Decimal("1.50")  # $1.50/hr fully-burdened rate (depreciation + electricity + maintenance)
+# Machine time costing constants - Loaded from Settings
+from app.core.settings import settings
+
+MACHINE_TIME_SKU = settings.MACHINE_TIME_SKU  # Manufacturing overhead cost
+MACHINE_HOURLY_RATE = Decimal(str(settings.MACHINE_HOURLY_RATE))  # Fully-burdened rate from settings
 
 # Legacy SKU for migration
-LEGACY_MACHINE_TIME_SKU = "SVC-MACHINE-TIME"
+LEGACY_MACHINE_TIME_SKU = settings.LEGACY_MACHINE_TIME_SKU
 
 
 def get_or_create_machine_time_product(db: Session) -> Product:

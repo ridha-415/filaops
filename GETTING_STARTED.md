@@ -328,6 +328,8 @@ DB_TRUSTED_CONNECTION=true
 SECRET_KEY=change-this-to-any-random-text-you-want
 ```
 
+**Optional:** To enable email notifications (password resets, etc.), add SMTP settings. See [Email Configuration Guide](../docs/EMAIL_CONFIGURATION.md) for details.
+
 Save and close Notepad.
 
 ---

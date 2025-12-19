@@ -142,6 +142,8 @@ class PasswordResetRequestResponse(BaseModel):
     """Schema for password reset request response"""
     message: str
     request_id: Optional[int] = None
+    reset_token: Optional[str] = None  # Provided if auto-approved (no email configured)
+    reset_url: Optional[str] = None  # Full reset URL if auto-approved
 
 
 class PasswordResetApprovalResponse(BaseModel):
