@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import logging
 
 from app.core.version import VersionManager
-from app.api.deps import get_db
+from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
 
