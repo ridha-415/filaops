@@ -93,7 +93,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       args:
-        VERSION: ${FILAOPS_VERSION:-1.5.0-dev}
+        VERSION: ${FILAOPS_VERSION:-1.6.0-dev}
         COMMIT: ${FILAOPS_COMMIT:-dev}
         BUILD_DATE: ${FILAOPS_BUILD_DATE}
     container_name: filaops-dev-backend
