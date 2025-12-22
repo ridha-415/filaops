@@ -28,6 +28,7 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: Admin
       ENVIRONMENT: production
+      SECRET_KEY: "ci-test-secret-key-not-for-production-use"
       DEBUG: "false"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
@@ -55,10 +56,25 @@ jobs:
 
       - name: Upgrade DB (alembic head)
         working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_NAME: filaops
+          DB_USER: postgres
+          DB_PASSWORD: Admin
         run: alembic upgrade head
 
       - name: Boot API and ping /health
         working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_NAME: filaops
+          DB_USER: postgres
+          DB_PASSWORD: Admin
+          ENVIRONMENT: production
+          SECRET_KEY: "ci-test-secret-key-not-for-production-use"
+          DEBUG: "false"
         run: |
           uvicorn app.main:app --host 127.0.0.1 --port 8001 &
           UV_PID=$!
