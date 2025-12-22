@@ -173,6 +173,10 @@ docs/sop/
 # PowerShell scripts (local convenience)
 *.ps1
 !start-backend.ps1
+!start-frontend.ps1
+!start-all.ps1
+!install.ps1
+!install-frontend.ps1
 
 # Temp/generated HTML files (specific paths only)
 frontend/dist/**/*.html

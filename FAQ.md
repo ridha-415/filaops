@@ -6,31 +6,26 @@ Common questions about FilaOps from print farm owners and users.
 
 ## Installation & Setup
 
-### Should I use Docker or manual installation?
+### How do I install FilaOps?
 
-**Use Docker** (recommended) if:
-- You want the fastest setup (10-15 minutes)
-- You're not comfortable with Python/Node.js/SQL Server setup
-- You want everything pre-configured
-- You're running on Windows, macOS, or Linux
+FilaOps uses a manual installation process with PostgreSQL. You'll need:
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL 16+
 
-**Use manual installation** if:
-- Docker isn't available on your system
-- You need to customize the database configuration
-- You're a developer who wants to modify the code
-
-**See:** [GETTING_STARTED.md](GETTING_STARTED.md) for both methods.
+**See:** 
+- **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows setup guide
+- **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS/Linux setup guide
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Overview and troubleshooting
 
 ---
 
-### Do I need to install Python, Node.js, or SQL Server?
+### Do I need to install Python, Node.js, or PostgreSQL?
 
-**With Docker:** No! Everything runs in containers. You only need Docker Desktop.
-
-**With manual installation:** Yes. You'll need:
+Yes. You'll need:
 - Python 3.11+
 - Node.js 18+
-- SQL Server Express (Windows) or PostgreSQL (Linux/Mac)
+- PostgreSQL 16+
 
 ---
 
@@ -47,7 +42,7 @@ Common questions about FilaOps from print farm owners and users.
 
 ### Can I run FilaOps on a Raspberry Pi?
 
-Not recommended. FilaOps requires SQL Server (or PostgreSQL), which needs more resources than a Raspberry Pi typically provides. Consider a small desktop computer or cloud server instead.
+Not recommended. FilaOps requires PostgreSQL, which needs more resources than a Raspberry Pi typically provides. Consider a small desktop computer or cloud server instead.
 
 ---
 
@@ -304,17 +299,13 @@ Pro tier is in development. Sign up for updates:
 
 ### What database does FilaOps use?
 
-**Docker version:** SQL Server (included in container)
-
-**Manual installation:** 
-- Windows: SQL Server Express
-- Linux/Mac: PostgreSQL (with manual setup)
+FilaOps uses **PostgreSQL 16+** for all installations (Windows, macOS, and Linux).
 
 ---
 
 ### Can I use a different database?
 
-Not currently. FilaOps is designed for SQL Server/PostgreSQL. Support for other databases may be added in the future.
+Not currently. FilaOps is designed for PostgreSQL. Support for other databases may be added in the future.
 
 ---
 
@@ -335,13 +326,17 @@ Yes! FilaOps can run on:
 
 ### How do I backup my data?
 
-**Docker:**
+Use PostgreSQL backup tools:
+
 ```bash
 # Backup database
-docker exec filaops-db /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourPassword -Q "BACKUP DATABASE FilaOps TO DISK='/var/opt/mssql/backup/FilaOps.bak'"
+pg_dump -U postgres -d filaops -F c -f filaops_backup.dump
+
+# Restore database
+pg_restore -U postgres -d filaops -c filaops_backup.dump
 ```
 
-**Manual:** Use SQL Server Management Studio or PostgreSQL backup tools.
+Or use pgAdmin or other PostgreSQL management tools for GUI-based backups.
 
 **Note:** Automated backup solutions coming in Pro tier.
 
@@ -364,15 +359,11 @@ docker exec filaops-db /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourPas
 
 ### I'm getting "Cannot connect to server" errors
 
-**Docker:**
-1. Check if containers are running: `docker-compose ps`
-2. Check logs: `docker-compose logs backend`
-3. Make sure Docker Desktop is running
-
-**Manual:**
-1. Check if backend is running (port 8000)
+1. Check if backend is running (port 8001)
 2. Check if frontend is running (port 5173)
-3. Verify database connection
+3. Verify PostgreSQL is running and accessible
+4. Check your `.env` file has correct database credentials
+5. Verify database exists: `psql -U postgres -c "SELECT 1 FROM pg_database WHERE datname='filaops';"`
 
 **See:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed help.
 
@@ -392,9 +383,10 @@ Common issues:
 ### The dashboard shows "Failed to fetch"
 
 This usually means:
-1. Backend server isn't running
-2. Database connection failed
-3. Port conflict (something else using port 8000)
+1. Backend server isn't running (check port 8001)
+2. Database connection failed (verify PostgreSQL is running)
+3. Port conflict (something else using port 8001 or 5173)
+4. CORS configuration issue (check backend CORS settings)
 
 **See:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions.
 
@@ -417,7 +409,7 @@ This usually means:
    - What you were trying to do
    - What happened (error message, screenshots)
    - Steps to reproduce
-   - Your setup (Docker or manual, OS, etc.)
+   - Your setup (OS, PostgreSQL version, Python version, etc.)
 
 ---
 

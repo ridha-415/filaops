@@ -4,39 +4,49 @@ Common issues and solutions for FilaOps installation and operation.
 
 ---
 
-## Docker Issues
+## PostgreSQL Database Issues
 
-### "Cannot connect to Docker daemon"
+### "Database connection failed"
 
-**Problem:** Docker Desktop isn't running or Docker service isn't started.
+**Problem:** PostgreSQL isn't running or connection string is wrong.
 
 **Solutions:**
-1. **Windows/macOS:** 
-   - Make sure Docker Desktop is running (look for whale icon in system tray/menu bar)
-   - If not running, open Docker Desktop and wait for it to start
-   
-2. **Windows (PowerShell):**
-   - Try running PowerShell as Administrator
-   - Restart Docker Desktop service
 
-3. **Linux:**
-   ```bash
-   # Start Docker service
-   sudo systemctl start docker
-   
-   # Enable Docker to start on boot
-   sudo systemctl enable docker
+1. **Check PostgreSQL is running:**
+   - **Windows:** Check Services (search "Services" in Start menu, look for "postgresql")
+   - **macOS:** `brew services list | grep postgresql`
+   - **Linux:** `sudo systemctl status postgresql`
+
+2. **Start PostgreSQL if not running:**
+   - **Windows:** Start the PostgreSQL service from Services
+   - **macOS:** `brew services start postgresql@16`
+   - **Linux:** `sudo systemctl start postgresql`
+
+3. **Verify connection string in `.env`:**
+   ```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=filaops
+   DB_USER=postgres
+   DB_PASSWORD=your_password_here
    ```
 
-4. **Verify Docker is working:**
+4. **Test database connection:**
    ```bash
-   docker --version
-   docker ps
+   # Test connection
+   psql -h localhost -U postgres -d filaops -c "SELECT 1;"
+   ```
+
+5. **Check if database exists:**
+   ```bash
+   psql -U postgres -c "SELECT 1 FROM pg_database WHERE datname='filaops';"
+   # If empty, create it:
+   createdb -U postgres filaops
    ```
 
 ---
 
-### "Port 5173 already in use" or "Port 8000 already in use"
+### "Port 5173 already in use" or "Port 8001 already in use"
 
 **Problem:** Another application is using the port FilaOps needs.
 
@@ -44,139 +54,31 @@ Common issues and solutions for FilaOps installation and operation.
 
 **Option 1: Stop the conflicting application**
 1. Find what's using the port:
-   - **Windows:** `netstat -ano | findstr :5173`
-   - **Mac/Linux:** `lsof -i :5173`
+   - **Windows:** `netstat -ano | findstr :5173` or `netstat -ano | findstr :8001`
+   - **Mac/Linux:** `lsof -i :5173` or `lsof -i :8001`
 2. Stop that application or change its port
 
-**Option 2: Change FilaOps port**
-1. Edit `docker-compose.yml`
-2. Change the port mapping:
-   ```yaml
-   # Change from:
-   ports:
-     - "5173:80"
-   # To:
-   ports:
-     - "8080:80"
-   ```
-3. Restart: `docker-compose down && docker-compose up -d`
-4. Access at: `http://localhost:8080`
+**Option 2: Change FilaOps ports**
+1. Edit `.env` file (backend) or frontend config
+2. Change backend port: Update `start-backend.ps1` or uvicorn command to use different port
+3. Change frontend port: Update `package.json` scripts or vite config
+4. Restart both backend and frontend
 
 ---
 
-### "Database connection failed"
+### "psql: command not found"
 
-**Problem:** Database container isn't ready or connection string is wrong.
+**Problem:** PostgreSQL command-line tools aren't in your PATH.
 
 **Solutions:**
 
-1. **Wait 30 seconds** - Database takes time to initialize on first startup
-   ```bash
-   # Check if database is ready
-   docker-compose logs db
-   # Look for: "SQL Server is now ready for client connections"
-   ```
+1. **Windows:** Add PostgreSQL bin directory to PATH:
+   - Usually: `C:\Program Files\PostgreSQL\16\bin`
+   - Add to System PATH in Environment Variables
 
-2. **Check database container status:**
-   ```bash
-   docker-compose ps
-   # Should show "Up" for filaops-db
-   ```
-
-3. **Check database logs:**
-   ```bash
-   docker-compose logs db
-   # Look for errors or connection issues
-   ```
-
-4. **Verify connection string in `.env`:**
-   ```
-   DB_HOST=filaops-db
-   DB_NAME=FilaOps
-   DB_USER=sa
-   DB_PASSWORD=YourStrong@Password123
-   ```
-
-5. **Restart database:**
-   ```bash
-   docker-compose restart db
-   # Wait 30 seconds, then try again
-   ```
-
----
-
-### "Container keeps restarting"
-
-**Problem:** Container crashes immediately after starting.
-
-**Solutions:**
-
-1. **Check container logs:**
-   ```bash
-   # Backend issues
-   docker-compose logs backend
-   
-   # Frontend issues
-   docker-compose logs frontend
-   
-   # Database issues
-   docker-compose logs db
-   ```
-
-2. **Common causes:**
-   - **Backend:** Database not ready, missing environment variables
-   - **Frontend:** Build failed, port conflict
-   - **Database:** Insufficient memory, disk space
-
-3. **Check system resources:**
-   ```bash
-   # Check Docker resources
-   docker stats
-   # Make sure you have enough RAM/CPU
-   ```
-
-4. **Rebuild containers:**
-   ```bash
-   docker-compose down
-   docker-compose build --no-cache
-   docker-compose up -d
-   ```
-
----
-
-### "filaops-db-init exited" (Normal!)
-
-**This is normal!** The `filaops-db-init` container is a one-time initialization script. It:
-1. Creates the database
-2. Runs initialization scripts
-3. Exits (this is expected)
-
-**You can ignore this.** The database container (`filaops-db`) should still be running.
-
----
-
-### Docker containers won't start after update
-
-**Problem:** After pulling latest code, containers fail to start.
-
-**Solutions:**
-
-1. **Rebuild containers:**
-   ```bash
-   docker-compose down
-   docker-compose build --no-cache
-   docker-compose up -d
-   ```
-
-2. **Check for breaking changes:**
-   - Review [CHANGELOG.md](CHANGELOG.md) or commit history
-   - Check if `.env` variables changed
-
-3. **Reset everything (⚠️ deletes all data):**
-   ```bash
-   docker-compose down -v
-   docker-compose up -d
-   ```
+2. **macOS/Linux:** PostgreSQL should be in PATH if installed via package manager
+   - Verify: `which psql`
+   - If missing, reinstall PostgreSQL or add to PATH manually
 
 ---
 
@@ -266,9 +168,9 @@ Common issues and solutions for FilaOps installation and operation.
 
 **Solutions:**
 
-1. **Find what's using port 8000:**
-   - **Windows:** `netstat -ano | findstr :8000`
-   - **Mac/Linux:** `lsof -i :8000`
+1. **Find what's using port 8001:**
+   - **Windows:** `netstat -ano | findstr :8001`
+   - **Mac/Linux:** `lsof -i :8001`
 
 2. **Stop the conflicting application** or use a different port:
    ```bash
@@ -284,33 +186,33 @@ Common issues and solutions for FilaOps installation and operation.
 
 ### "Can't connect to database" (Manual Installation)
 
-**Problem:** SQL Server isn't running or connection string is wrong.
+**Problem:** PostgreSQL isn't running or connection string is wrong.
 
 **Solutions:**
 
-1. **Check SQL Server is running:**
+1. **Check PostgreSQL is running:**
    - **Windows:** Open Services (search "Services" in Start menu)
-   - Find "SQL Server (SQLEXPRESS)" or "SQL Server (MSSQLSERVER)"
+   - Find "postgresql" service
    - Make sure it's "Running"
    - If not, right-click → Start
+   - **macOS:** `brew services list | grep postgresql`
+   - **Linux:** `sudo systemctl status postgresql`
 
 2. **Verify connection string in `.env`:**
    ```
-   DB_HOST=localhost\SQLEXPRESS
-   DB_NAME=FilaOps
-   DB_TRUSTED_CONNECTION=true
-   # OR
-   DB_USER=sa
-   DB_PASSWORD=YourPassword
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=filaops
+   DB_USER=postgres
+   DB_PASSWORD=your_password_here
    ```
 
 3. **Test connection:**
    ```bash
-   # Windows
-   sqlcmd -S localhost\SQLEXPRESS -E -Q "SELECT @@VERSION"
+   psql -h localhost -U postgres -d filaops -c "SELECT version();"
    ```
 
-4. **Check firewall:** SQL Server might be blocked by Windows Firewall
+4. **Check firewall:** PostgreSQL might be blocked by firewall (default port 5432)
 
 ---
 
@@ -323,8 +225,8 @@ Common issues and solutions for FilaOps installation and operation.
 **Solutions:**
 
 1. **Check backend is running:**
-   - **Docker:** `docker-compose ps` (backend should be "Up")
-   - **Manual:** Check terminal running `uvicorn`
+   - Check terminal running `uvicorn` (should show "Uvicorn running on http://...")
+   - Verify backend is accessible: `curl http://localhost:8001/health`
 
 2. **Check API URL:**
    - Open browser console (F12)
@@ -332,7 +234,7 @@ Common issues and solutions for FilaOps installation and operation.
    - Verify `VITE_API_URL` in frontend `.env` matches backend URL
 
 3. **Test backend directly:**
-   - Open http://localhost:8000/docs
+   - Open http://localhost:8001/docs
    - Should see FastAPI documentation
    - If not, backend isn't running
 
@@ -344,24 +246,26 @@ Common issues and solutions for FilaOps installation and operation.
 
 ### Stuck at Login Screen (Expected Setup Wizard)
 
-**Problem:** On a fresh Docker install, you see the login screen instead of the setup wizard.
+**Problem:** On a fresh install, you see the login screen instead of the setup wizard.
 
 **Cause:** The database has existing user data, likely from:
 
-- A previous installation with persisted volumes
+- A previous installation
 - Incomplete database cleanup
 
 **Solution - Fresh Start:**
 
 ```bash
-# Stop containers and remove all data volumes
-docker-compose down -v
+# Drop and recreate database
+psql -U postgres -c "DROP DATABASE IF EXISTS filaops;"
+createdb -U postgres filaops
 
-# Start fresh
-docker-compose up -d
+# Run migrations
+cd backend
+alembic upgrade head
 ```
 
-This removes the database volume and starts fresh. The setup wizard will appear.
+This removes the database and starts fresh. The setup wizard will appear.
 
 ---
 
@@ -371,10 +275,10 @@ This removes the database volume and starts fresh. The setup wizard will appear.
 
 **Solutions:**
 
-1. **Docker (fresh install):**
+1. **Fresh install:**
    - FilaOps doesn't have default credentials
    - You create your admin account via the Setup Wizard on first run
-   - If you missed setup, run `docker-compose down -v && docker-compose up -d` for fresh start
+   - If you missed setup, drop and recreate the database (see above)
 
 2. **Manual (local development):**
    - Default: `admin@localhost` / `admin123`
@@ -428,8 +332,7 @@ This removes the database volume and starts fresh. The setup wizard will appear.
 1. **This was fixed in recent updates** - Make sure you're on latest version:
    ```bash
    git pull
-   docker-compose build --no-cache
-   docker-compose up -d
+   # Restart backend and frontend
    ```
 
 2. **Check inventory locations:**
@@ -467,8 +370,9 @@ This removes the database volume and starts fresh. The setup wizard will appear.
 
 1. **Check database performance:**
    ```bash
-   # Docker
-   docker-compose logs db
+   # Check PostgreSQL logs
+   # Windows: Check PostgreSQL log files
+   # macOS/Linux: tail -f /var/log/postgresql/postgresql-*.log
    
    # Look for slow queries
    ```
@@ -564,19 +468,18 @@ This removes the database volume and starts fresh. The setup wizard will appear.
 
 2. **Update your `.env` file:**
    ```
-   VITE_API_URL=http://192.168.1.100:8000
+   VITE_API_URL=http://192.168.1.100:8001
    FRONTEND_URL=http://192.168.1.100:5173
    ```
    Replace `192.168.1.100` with your actual server IP.
 
 3. **Rebuild the frontend (required!):**
    ```bash
-   docker-compose down
-   docker-compose build --no-cache frontend
-   docker-compose up -d
+   cd frontend
+   npm run build
    ```
 
-   ⚠️ **Important:** You MUST rebuild with `--no-cache`. The `VITE_API_URL` is compiled into the JavaScript at build time - simply restarting containers won't work.
+   ⚠️ **Important:** The `VITE_API_URL` is compiled into the JavaScript at build time - you need to rebuild the frontend after changing environment variables.
 
 4. **Access from other machines:**
    - Open `http://192.168.1.100:5173` in your browser
@@ -590,7 +493,7 @@ Vite (the frontend build tool) bakes environment variables starting with `VITE_`
 
 ### API works in browser but frontend can't connect
 
-**Problem:** You can open `http://192.168.1.100:8000` directly and see the API response, but the frontend shows connection errors.
+**Problem:** You can open `http://192.168.1.100:8001` directly and see the API response, but the frontend shows connection errors.
 
 **Cause:** CORS (Cross-Origin Resource Sharing) is blocking the frontend.
 
@@ -605,7 +508,9 @@ FRONTEND_URL=http://192.168.1.100:5173
 
 Then restart the backend:
 ```bash
-docker-compose restart backend
+# Stop the backend (Ctrl+C) and restart
+cd backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
 ```
 
 ---
@@ -641,8 +546,9 @@ sudo firewall-cmd --reload
 ## Still Need Help?
 
 1. **Check logs:**
-   - **Docker:** `docker-compose logs -f`
-   - **Manual:** Check terminal output
+   - Check backend terminal output
+   - Check frontend terminal output
+   - Check PostgreSQL logs if database issues
 
 2. **Join Discord for quick help:**
    - [Discord Server](https://discord.gg/FAhxySnRwa)
@@ -656,7 +562,7 @@ sudo firewall-cmd --reload
    - Include error messages
    - Include logs
    - Describe what you were doing
-   - Include your setup (Docker/manual, OS, etc.)
+   - Include your setup (OS, PostgreSQL version, Python version, etc.)
 
 ---
 
