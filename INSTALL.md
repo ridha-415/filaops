@@ -1,7 +1,7 @@
 # FilaOps Installation Guide
 
-> **For Print Farmers** - No development experience required.  
-> Estimated time: 10-15 minutes
+> **For Print Farmers** - Basic command line knowledge helpful.
+> Estimated time: 20-30 minutes
 
 ## What You'll Need
 
@@ -9,45 +9,103 @@
 - 4GB+ RAM available
 - 10GB+ free disk space
 - Internet connection (for initial setup)
+- Administrator/sudo access (for installing dependencies)
 
 ---
 
-## Step 1: Install Docker Desktop
+## Step 1: Install PostgreSQL
 
-Docker runs FilaOps in isolated containers - no Python or database setup required.
+FilaOps uses PostgreSQL as its database engine.
 
 ### Windows
 
-1. Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-2. Run the installer (double-click the downloaded file)
-3. Follow the prompts - accept defaults
-4. **Restart your computer** when prompted
-5. After restart, Docker Desktop should start automatically (whale icon in system tray)
+1. Download [PostgreSQL installer](https://www.postgresql.org/download/windows/) (version 14 or newer)
+2. Run the installer
+3. Follow the prompts:
+   - Choose installation directory (default is fine)
+   - Select components: PostgreSQL Server, pgAdmin, Command Line Tools
+   - Set a **password for postgres user** (remember this!)
+   - Port: 5432 (default)
+   - Locale: Default locale
+4. Complete the installation
 
 ### macOS
 
-1. Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-2. Open the downloaded `.dmg` file
-3. Drag Docker to Applications folder
-4. Open Docker from Applications
-5. Grant permissions when prompted
+Using Homebrew (recommended):
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install PostgreSQL
+brew install postgresql@14
+brew services start postgresql@14
+```
 
 ### Linux (Ubuntu/Debian)
 
 ```bash
-# Install Docker
-curl -fsSL https://get.docker.com | sh
+# Install PostgreSQL
+sudo apt update
+sudo apt install postgresql postgresql-contrib
 
-# Add your user to docker group (avoids needing sudo)
-sudo usermod -aG docker $USER
-
-# Log out and back in, then verify
-docker --version
+# Start PostgreSQL service
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 ```
 
 ---
 
-## Step 2: Download FilaOps
+## Step 2: Install Python
+
+FilaOps requires Python 3.9 or newer.
+
+### Windows
+
+1. Download [Python](https://www.python.org/downloads/) (3.9+)
+2. Run the installer
+3. **Important:** Check "Add Python to PATH"
+4. Click "Install Now"
+5. Verify installation:
+   ```powershell
+   python --version
+   ```
+
+### macOS
+
+```bash
+# Using Homebrew
+brew install python@3.11
+```
+
+### Linux (Ubuntu/Debian)
+
+```bash
+# Python 3.9+ usually pre-installed, verify:
+python3 --version
+
+# If needed:
+sudo apt install python3 python3-pip python3-venv
+```
+
+---
+
+## Step 3: Install Node.js
+
+The FilaOps frontend requires Node.js 18 or newer.
+
+### All Platforms
+
+1. Download [Node.js LTS](https://nodejs.org/) (18+)
+2. Run the installer (accept defaults)
+3. Verify installation:
+   ```bash
+   node --version
+   npm --version
+   ```
+
+---
+
+## Step 4: Download FilaOps
 
 ### Option A: Download ZIP (Easiest)
 
@@ -64,59 +122,142 @@ cd filaops
 
 ---
 
-## Step 3: Configure (Optional)
+## Step 5: Create Database
 
-For most users, the defaults work fine. Skip to Step 4.
+Open a terminal/command prompt and create the FilaOps database:
 
-**If you want to customize:**
+### Windows (Command Prompt as Administrator)
 
-1. Copy the example config:
-   - Windows: `copy .env.example .env`
-   - Mac/Linux: `cp .env.example .env`
-
-2. Edit `.env` and change:
-   - `DB_PASSWORD` - Database password (change from default!)
-   - `SECRET_KEY` - Security key (run `openssl rand -hex 32` to generate)
-
----
-
-## Step 4: Start FilaOps
-
-Open a terminal/command prompt in the FilaOps folder:
-
-### Windows (PowerShell or Command Prompt)
-
-```powershell
-cd C:\FilaOps
-docker-compose up -d
+```cmd
+psql -U postgres
+```
+Enter your postgres password, then:
+```sql
+CREATE DATABASE filaops;
+CREATE USER filaops_user WITH PASSWORD 'your_secure_password_here';
+GRANT ALL PRIVILEGES ON DATABASE filaops TO filaops_user;
+\q
 ```
 
-### Mac/Linux
+### macOS/Linux
 
 ```bash
-cd ~/filaops
-docker-compose up -d
+sudo -u postgres psql
 ```
-
-> **Note:** If you see a file called `docker-compose.dev.yml` in the folder, ignore it - that's only for developers. Use `docker-compose.yml` (the default).
-
-**First startup takes 3-5 minutes** as Docker downloads and builds everything.
-
-You'll see output like:
-```
-Creating filaops-db       ... done
-Creating filaops-redis    ... done
-Creating filaops-db-init  ... done
-Creating filaops-backend  ... done
-Creating filaops-frontend ... done
+Then:
+```sql
+CREATE DATABASE filaops;
+CREATE USER filaops_user WITH PASSWORD 'your_secure_password_here';
+GRANT ALL PRIVILEGES ON DATABASE filaops TO filaops_user;
+\q
 ```
 
 ---
 
-## Step 5: Access FilaOps
+## Step 6: Configure FilaOps
+
+1. Navigate to the FilaOps folder:
+   ```bash
+   cd C:\FilaOps  # Windows
+   cd ~/filaops   # Mac/Linux
+   ```
+
+2. Copy the example configuration:
+   - Windows: `copy backend\.env.example backend\.env`
+   - Mac/Linux: `cp backend/.env.example backend/.env`
+
+3. Edit `backend/.env` and update:
+   ```bash
+   # Database connection
+   DATABASE_URL=postgresql://filaops_user:your_secure_password_here@localhost:5432/filaops
+
+   # Security (generate with: openssl rand -hex 32)
+   SECRET_KEY=your_generated_secret_key_here
+
+   # CORS origins (add your network IP if accessing remotely)
+   CORS_ORIGINS=["http://localhost:5173","http://localhost:5174"]
+   ```
+
+---
+
+## Step 7: Install Backend Dependencies
+
+### Windows (PowerShell)
+
+```powershell
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run database migrations
+alembic upgrade head
+```
+
+### macOS/Linux
+
+```bash
+cd backend
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run database migrations
+alembic upgrade head
+```
+
+---
+
+## Step 8: Install Frontend Dependencies
+
+Open a **new terminal** (keep backend terminal open):
+
+```bash
+cd frontend
+npm install
+```
+
+---
+
+## Step 9: Start FilaOps
+
+You'll need **two terminals running** - one for backend, one for frontend.
+
+### Terminal 1: Backend
+
+```bash
+cd backend
+source venv/bin/activate  # Mac/Linux
+.\venv\Scripts\activate   # Windows
+
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Terminal 2: Frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+## Step 10: Access FilaOps
 
 1. Open your browser
-2. Go to: **http://localhost:5173**
+2. Go to: **http://localhost:5174**
 3. You should see the FilaOps **Setup Wizard**!
 
 ### First-Time Setup
@@ -134,43 +275,62 @@ You'll be logged in automatically and can start using FilaOps!
 
 ---
 
-## Common Commands
+## Production Deployment (Optional)
 
-### Start FilaOps
-```bash
-docker-compose up -d
+For production use, you'll want to run FilaOps as a system service instead of in terminal windows.
+
+### Backend Service (systemd on Linux)
+
+Create `/etc/systemd/system/filaops-backend.service`:
+```ini
+[Unit]
+Description=FilaOps Backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/filaops/backend
+Environment="PATH=/opt/filaops/backend/venv/bin"
+ExecStart=/opt/filaops/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### Stop FilaOps
+Enable and start:
 ```bash
-docker-compose down
+sudo systemctl enable filaops-backend
+sudo systemctl start filaops-backend
 ```
 
-### View Logs (troubleshooting)
+### Frontend Service (PM2 on all platforms)
+
+Install PM2:
 ```bash
-docker-compose logs -f
+npm install -g pm2
 ```
 
-### Build and Start (After Code Changes)
+Build and serve frontend:
 ```bash
-docker-compose build
-docker-compose up -d
+cd frontend
+npm run build
+pm2 serve dist 5173 --name filaops-frontend --spa
+pm2 save
+pm2 startup  # Follow the instructions to enable on boot
 ```
 
-### Update to Latest Version (Rebuild from Scratch)
-```bash
-git pull
-docker-compose build --no-cache
-docker-compose up -d
-```
+### Backend Service (Windows)
 
-**Note:** `-d` flag is for `up` (detached/background mode), not `build`. Build first, then start.
-
-### Reset Everything (⚠️ deletes all data)
-```bash
-docker-compose down -v
-docker-compose up -d
-```
+Use NSSM (Non-Sucking Service Manager):
+1. Download [NSSM](https://nssm.cc/download)
+2. Install service:
+   ```cmd
+   nssm install FilaOpsBackend "C:\FilaOps\backend\venv\Scripts\python.exe" "-m" "uvicorn" "app.main:app" "--host" "0.0.0.0" "--port" "8000"
+   nssm set FilaOpsBackend AppDirectory "C:\FilaOps\backend"
+   nssm start FilaOpsBackend
+   ```
 
 ---
 
@@ -184,20 +344,32 @@ To access FilaOps from other machines on your network:
    - Windows: `ipconfig` (look for IPv4 Address, e.g., `192.168.1.100`)
    - Mac/Linux: `ip addr` or `ifconfig`
 
-2. Create/edit your `.env` file in the FilaOps folder:
+2. Update `backend/.env`:
+   ```bash
+   # Add your network IP to CORS origins
+   CORS_ORIGINS=["http://localhost:5173","http://192.168.1.100:5173"]
+   ```
+
+3. Update `frontend/.env.local` (create if doesn't exist):
    ```bash
    # Example: If your server IP is 192.168.1.100
    VITE_API_URL=http://192.168.1.100:8000
    ```
 
-3. **Rebuild and restart** (rebuilding is required - the URL is baked into the frontend at build time):
+4. **Rebuild frontend** (the URL is baked in at build time):
    ```bash
-   docker-compose down
-   docker-compose build --no-cache frontend
-   docker-compose up -d
+   cd frontend
+   npm run build
    ```
 
-4. Access from other computers at: `http://YOUR_IP_ADDRESS:5173`
+5. Restart backend:
+   ```bash
+   cd backend
+   # Stop with Ctrl+C, then restart:
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+6. Access from other computers at: `http://YOUR_IP_ADDRESS:5173`
 
 ### Why This Is Needed
 
@@ -207,26 +379,94 @@ Setting `VITE_API_URL` tells the frontend where to find the API server on your n
 
 ---
 
+## Common Commands
+
+### Start FilaOps (Development)
+
+Terminal 1:
+```bash
+cd backend
+source venv/bin/activate  # or .\venv\Scripts\activate on Windows
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Terminal 2:
+```bash
+cd frontend
+npm run dev
+```
+
+### Stop FilaOps
+
+Press `Ctrl+C` in each terminal.
+
+### Update to Latest Version
+
+```bash
+# Stop FilaOps (Ctrl+C in both terminals)
+
+# Pull latest code
+git pull
+
+# Update backend
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+
+# Update frontend
+cd ../frontend
+npm install
+
+# Restart FilaOps (see "Start FilaOps" above)
+```
+
+### Reset Database (⚠️ deletes all data)
+
+```bash
+# Drop and recreate database
+psql -U postgres
+DROP DATABASE filaops;
+CREATE DATABASE filaops;
+GRANT ALL PRIVILEGES ON DATABASE filaops TO filaops_user;
+\q
+
+# Re-run migrations
+cd backend
+source venv/bin/activate
+alembic upgrade head
+```
+
+---
+
 ## Troubleshooting
 
-### "Cannot connect to Docker daemon"
-- Make sure Docker Desktop is running (whale icon in system tray)
-- On Windows, try running PowerShell as Administrator
+### "psql: command not found"
+PostgreSQL binaries not in PATH. Add to PATH:
+- Windows: `C:\Program Files\PostgreSQL\14\bin`
+- macOS (Homebrew): Already in PATH
+- Linux: Usually already in PATH
 
-### "Port 5173 already in use"
+### "FATAL: password authentication failed"
+Check your database password in `backend/.env` matches what you set during database creation.
+
+### "Port 5174 already in use"
 Another application is using that port. Either:
 - Stop the other application, or
-- Edit `docker-compose.yml` and change `"5173:80"` to `"8080:80"`, then access at http://localhost:8080
+- Edit `frontend/vite.config.ts` and change the port number
 
 ### "Database connection failed"
-- Wait 30 seconds and try again (database may still be starting)
-- Check logs: `docker-compose logs db`
+- Make sure PostgreSQL is running:
+  - Windows: Check Services app
+  - macOS: `brew services list`
+  - Linux: `sudo systemctl status postgresql`
+- Verify DATABASE_URL in `backend/.env`
 
-### "Container keeps restarting"
-Check what's wrong:
-```bash
-docker-compose logs backend
-```
+### "Module not found" errors
+Make sure you:
+- Activated the virtual environment (backend)
+- Ran `pip install -r requirements.txt` (backend)
+- Ran `npm install` (frontend)
 
 ### Still stuck?
 
@@ -243,6 +483,9 @@ docker-compose logs backend
 | Storage | 10GB | 20GB+ |
 | CPU | 2 cores | 4+ cores |
 | OS | Win 10, macOS 11, Ubuntu 20.04 | Latest versions |
+| PostgreSQL | 12+ | 14+ |
+| Python | 3.9+ | 3.11+ |
+| Node.js | 18+ | 20+ |
 
 ---
 
