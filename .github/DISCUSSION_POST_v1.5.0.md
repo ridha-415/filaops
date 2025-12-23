@@ -1,5 +1,7 @@
 # 🚀 v1.5.0 is Live! How to Upgrade
 
+> ⚠️ **HISTORICAL**: This document describes Docker-based v1.5.0. For current native installation, see [INSTALL.md](../INSTALL.md).
+
 Hey everyone! v1.5.0 is officially released and ready for you to upgrade. This release brings some great improvements and fixes.
 
 ## TL;DR - Quick Upgrade
