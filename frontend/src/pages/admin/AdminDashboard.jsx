@@ -50,6 +50,7 @@ function RecentOrderRow({ order }) {
 function SalesChart({ data, period, onPeriodChange, loading }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [chartWidth, setChartWidth] = useState(300);
   const chartRef = useRef(null);
 
   // Parse date string as local date (avoid UTC timezone shift)
@@ -130,17 +131,15 @@ function SalesChart({ data, period, onPeriodChange, loading }) {
   const dataPoints = fillDateRange(data?.data, data?.start_date, data?.end_date);
 
   // Calculate cumulative values for proper trend display
-  let cumulativeSales = 0;
-  let cumulativePayments = 0;
-  const cumulativeData = dataPoints.map((d) => {
-    cumulativeSales += d.sales || d.total || 0;
-    cumulativePayments += d.payments || 0;
-    return {
+  const cumulativeData = dataPoints.reduce((acc, d) => {
+    const prev = acc[acc.length - 1] || { cumulativeSales: 0, cumulativePayments: 0 };
+    acc.push({
       ...d,
-      cumulativeSales,
-      cumulativePayments,
-    };
-  });
+      cumulativeSales: prev.cumulativeSales + (d.sales || d.total || 0),
+      cumulativePayments: prev.cumulativePayments + (d.payments || 0),
+    });
+    return acc;
+  }, []);
 
   // Use max of both cumulative totals for consistent scale
   const maxCumulativeSales = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeSales : 1;
@@ -202,6 +201,7 @@ function SalesChart({ data, period, onPeriodChange, loading }) {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
       });
+      setChartWidth(chartRef.current.offsetWidth);
     }
     setHoveredIndex(index);
   };
@@ -421,7 +421,7 @@ function SalesChart({ data, period, onPeriodChange, loading }) {
             <div
               className="absolute z-10 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-3 pointer-events-none"
               style={{
-                left: Math.min(mousePos.x + 10, chartRef.current?.offsetWidth - 180 || 0),
+                left: Math.min(mousePos.x + 10, chartWidth - 180),
                 top: Math.max(mousePos.y - 80, 0),
                 minWidth: '160px',
               }}

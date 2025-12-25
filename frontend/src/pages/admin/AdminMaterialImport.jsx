@@ -105,7 +105,7 @@ export default function AdminMaterialImport() {
         try {
           const errorData = await res.json();
           errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch (e) {
+        } catch {
           errorMessage = `Server error: ${res.status} ${res.statusText}`;
         }
         throw new Error(errorMessage);

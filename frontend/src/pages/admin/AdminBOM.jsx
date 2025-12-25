@@ -698,7 +698,6 @@ function BOMDetailView({
   const [showExploded, setShowExploded] = useState(false);
   const [explodedData, setExplodedData] = useState(null);
   const [costRollup, setCostRollup] = useState(null);
-  const [expandedSubs, setExpandedSubs] = useState(new Set());
 
   // Process Path / Routing state
   const [routingTemplates, setRoutingTemplates] = useState([]);
@@ -706,7 +705,7 @@ function BOMDetailView({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [timeOverrides, setTimeOverrides] = useState({});
   const [applyingTemplate, setApplyingTemplate] = useState(false);
-  const [showProcessPath, setShowProcessPath] = useState(true);
+  const [showProcessPath] = useState(true);
   const [workCenters, setWorkCenters] = useState([]);
   const [showAddOperation, setShowAddOperation] = useState(false);
   const [pendingOperations, setPendingOperations] = useState([]);
@@ -865,7 +864,7 @@ function BOMDetailView({
       // Convert timeOverrides to the format expected by the API
       const overrides = Object.entries(timeOverrides)
         .filter(
-          ([_, val]) =>
+          ([, val]) =>
             val.run_time_minutes !== undefined ||
             val.setup_time_minutes !== undefined
         )
@@ -1034,15 +1033,7 @@ function BOMDetailView({
     }
   };
 
-  const toggleSubAssembly = (componentId) => {
-    const newExpanded = new Set(expandedSubs);
-    if (newExpanded.has(componentId)) {
-      newExpanded.delete(componentId);
-    } else {
-      newExpanded.add(componentId);
-    }
-    setExpandedSubs(newExpanded);
-  };
+  // toggleSubAssembly removed - not currently used
 
   const handleAddPendingOperation = () => {
     if (!newOperation.work_center_id) return;
@@ -1228,35 +1219,7 @@ function BOMDetailView({
     }
   };
 
-  const handleRecalculate = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `${API_URL}/api/v1/admin/bom/${bom.id}/recalculate`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (res.ok) {
-        onUpdate();
-      } else {
-        const errorData = await res.json();
-        toast.error(
-          `Failed to recalculate BOM cost: ${
-            errorData.detail || "Unknown error"
-          }`
-        );
-      }
-    } catch (err) {
-      toast.error(
-        `Failed to recalculate BOM cost: ${err.message || "Network error"}`
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  // handleRecalculate removed - not currently used
 
   return (
     <div className="space-y-6">

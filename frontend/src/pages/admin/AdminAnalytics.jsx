@@ -46,7 +46,7 @@ const AdminAnalytics = () => {
       } else {
         // Analytics fetch failed - analytics section will be empty
       }
-    } catch (error) {
+    } catch {
       // Analytics fetch failed - analytics section will be empty
     } finally {
       setLoading(false);

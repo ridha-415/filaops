@@ -20,12 +20,13 @@ export default function MaterialTraceability() {
   // Fetch spools for forward trace
   useEffect(() => {
     if (activeTab === "forward" && spools.length === 0) {
-      setLoadingSpools(true);
-      fetch(`${API_URL}/api/v1/spools?limit=200`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
+      const fetchSpools = async () => {
+        setLoadingSpools(true);
+        try {
+          const res = await fetch(`${API_URL}/api/v1/spools?limit=200`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
           // Handle error responses and ensure we always set an array
           if (data.detail || data.error) {
             console.error("API error:", data.detail || data.error);
@@ -33,14 +34,14 @@ export default function MaterialTraceability() {
           } else {
             setSpools(Array.isArray(data) ? data : (data.items || []));
           }
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error("Failed to fetch spools:", err);
           setSpools([]);
-        })
-        .finally(() => {
+        } finally {
           setLoadingSpools(false);
-        });
+        }
+      };
+      fetchSpools();
     }
   }, [activeTab, token, spools.length]);
 

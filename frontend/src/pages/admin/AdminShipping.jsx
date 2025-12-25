@@ -7,6 +7,7 @@ import { useToast } from "../../components/Toast";
 function ShippingChart({ data, period, onPeriodChange, loading }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [chartWidth, setChartWidth] = useState(300);
   const chartRef = useRef(null);
 
   const parseLocalDate = (dateStr) => {
@@ -59,13 +60,15 @@ function ShippingChart({ data, period, onPeriodChange, loading }) {
   const dataPoints = fillDateRange(data?.data, data?.start_date, data?.end_date);
 
   // Calculate cumulative values
-  let cumulativeValue = 0;
-  let cumulativeShipped = 0;
-  const cumulativeData = dataPoints.map((d) => {
-    cumulativeValue += d.value || 0;
-    cumulativeShipped += d.shipped || 0;
-    return { ...d, cumulativeValue, cumulativeShipped };
-  });
+  const cumulativeData = dataPoints.reduce((acc, d) => {
+    const prev = acc[acc.length - 1] || { cumulativeValue: 0, cumulativeShipped: 0 };
+    acc.push({
+      ...d,
+      cumulativeValue: prev.cumulativeValue + (d.value || 0),
+      cumulativeShipped: prev.cumulativeShipped + (d.shipped || 0),
+    });
+    return acc;
+  }, []);
 
   const maxCumulativeValue = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeValue : 1;
   const maxDailyShipped = Math.max(...dataPoints.map(d => d.shipped || 0), 1);
@@ -89,6 +92,7 @@ function ShippingChart({ data, period, onPeriodChange, loading }) {
     if (chartRef.current) {
       const rect = chartRef.current.getBoundingClientRect();
       setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setChartWidth(chartRef.current.offsetWidth);
     }
     setHoveredIndex(index);
   };
@@ -203,7 +207,7 @@ function ShippingChart({ data, period, onPeriodChange, loading }) {
           {hoveredIndex !== null && getHoveredData() && (
             <div
               className="absolute z-10 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-3 pointer-events-none"
-              style={{ left: Math.min(mousePos.x + 10, chartRef.current?.offsetWidth - 150 || 0), top: Math.max(mousePos.y - 70, 0), minWidth: '140px' }}
+              style={{ left: Math.min(mousePos.x + 10, chartWidth - 150), top: Math.max(mousePos.y - 70, 0), minWidth: '140px' }}
             >
               {(() => {
                 const d = getHoveredData();

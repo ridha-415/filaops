@@ -39,7 +39,6 @@ export default function AdminPayments() {
   const token = localStorage.getItem("adminToken");
 
   // State
-  const [activeTab, setActiveTab] = useState("payments"); // payments | outstanding
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [payments, setPayments] = useState([]);

@@ -210,11 +210,6 @@ export default function AdminOrders() {
     return ["pending", "confirmed", "on_hold"].includes(order.status);
   };
 
-  // Check if order can be deleted
-  const canDeleteOrder = (order) => {
-    return ["cancelled", "pending"].includes(order.status);
-  };
-
   // Handle cancel order
   const handleCancelOrder = async () => {
     if (!cancellingOrder) return;
@@ -290,7 +285,7 @@ export default function AdminOrders() {
           try {
             const errorData = JSON.parse(text);
             errorMsg = errorData.detail || errorMsg;
-          } catch (e) {
+          } catch {
             // Ignore JSON parse error, fallback to generic message
           }
         }

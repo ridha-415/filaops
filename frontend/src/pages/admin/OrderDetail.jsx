@@ -27,15 +27,6 @@ export default function OrderDetail() {
   const [productionOrders, setProductionOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Check if WOs exist for the main order line products (not sub-assemblies)
-  const getMainProductWOs = () => {
-    if (!order?.lines || order.lines.length === 0) return [];
-    const lineProductIds = order.lines.map((line) => line.product_id);
-    return productionOrders.filter(
-      (po) => lineProductIds.includes(po.product_id) && po.sales_order_line_id
-    );
-  };
-
   const hasMainProductWO = () => {
     if (!order?.lines || order.lines.length === 0) {
       // Old style order with single product_id
@@ -106,7 +97,6 @@ export default function OrderDetail() {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
         throw new Error(
           `Failed to fetch order: ${res.status} ${res.statusText}`
         );
@@ -378,7 +368,7 @@ export default function OrderDetail() {
             setCapacityRequirements(capacity);
           }
         }
-      } catch (routingErr) {
+      } catch {
         // Routing is optional - don't fail
       }
     } catch {
@@ -463,11 +453,6 @@ export default function OrderDetail() {
     return order && ["pending", "confirmed", "on_hold"].includes(order.status);
   };
 
-  // Check if order can be deleted
-  const canDeleteOrder = () => {
-    return order && ["cancelled", "pending"].includes(order.status);
-  };
-
   // Handle cancel order
   const handleCancelOrder = async () => {
     try {
@@ -518,7 +503,7 @@ export default function OrderDetail() {
           try {
             const errorData = JSON.parse(text);
             errorMsg = errorData.detail || errorMsg;
-          } catch (e) {
+          } catch {
             // Ignore JSON parse error, fallback to generic message
           }
         }

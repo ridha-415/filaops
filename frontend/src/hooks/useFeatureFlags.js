@@ -28,7 +28,7 @@ export const useFeatureFlags = () => {
         } else {
           setTier('open');
         }
-      } catch (error) {
+      } catch {
         // Tier fetch failure - default to 'open' tier
         setTier('open');
       } finally {

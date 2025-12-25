@@ -150,7 +150,7 @@ export default function AdminCustomers() {
             const data = JSON.parse(pendingData);
             data.newCustomerId = savedCustomer.id;
             sessionStorage.setItem("pendingOrderData", JSON.stringify(data));
-          } catch (e) {
+          } catch {
             // Session storage update failure is non-critical - order creation will proceed
           }
         }

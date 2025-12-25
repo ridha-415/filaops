@@ -12,6 +12,7 @@ import ReceiveModal from "../../components/purchasing/ReceiveModal";
 function PurchasingChart({ data, period, onPeriodChange, loading }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [chartWidth, setChartWidth] = useState(300);
   const chartRef = useRef(null);
 
   const parseLocalDate = (dateStr) => {
@@ -63,13 +64,15 @@ function PurchasingChart({ data, period, onPeriodChange, loading }) {
 
   const dataPoints = fillDateRange(data?.data, data?.start_date, data?.end_date);
 
-  let cumulativeSpend = 0;
-  let cumulativeReceived = 0;
-  const cumulativeData = dataPoints.map((d) => {
-    cumulativeSpend += d.spend || 0;
-    cumulativeReceived += d.received || 0;
-    return { ...d, cumulativeSpend, cumulativeReceived };
-  });
+  const cumulativeData = dataPoints.reduce((acc, d) => {
+    const prev = acc[acc.length - 1] || { cumulativeSpend: 0, cumulativeReceived: 0 };
+    acc.push({
+      ...d,
+      cumulativeSpend: prev.cumulativeSpend + (d.spend || 0),
+      cumulativeReceived: prev.cumulativeReceived + (d.received || 0),
+    });
+    return acc;
+  }, []);
 
   const maxCumulativeSpend = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].cumulativeSpend : 1;
   const maxDailyReceived = Math.max(...dataPoints.map(d => d.received || 0), 1);
@@ -93,6 +96,7 @@ function PurchasingChart({ data, period, onPeriodChange, loading }) {
     if (chartRef.current) {
       const rect = chartRef.current.getBoundingClientRect();
       setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setChartWidth(chartRef.current.offsetWidth);
     }
     setHoveredIndex(index);
   };
@@ -183,7 +187,7 @@ function PurchasingChart({ data, period, onPeriodChange, loading }) {
             </defs>
           </svg>
           {hoveredIndex !== null && getHoveredData() && (
-            <div className="absolute z-10 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-3 pointer-events-none" style={{ left: Math.min(mousePos.x + 10, chartRef.current?.offsetWidth - 150 || 0), top: Math.max(mousePos.y - 70, 0), minWidth: '140px' }}>
+            <div className="absolute z-10 bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-3 pointer-events-none" style={{ left: Math.min(mousePos.x + 10, chartWidth - 150), top: Math.max(mousePos.y - 70, 0), minWidth: '140px' }}>
               {(() => {
                 const d = getHoveredData();
                 return (
@@ -231,7 +235,7 @@ const statusColors = {
 
 export default function AdminPurchasing() {
   const toast = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "orders";
   const [activeTab, setActiveTab] = useState(initialTab); // orders | vendors | import | low-stock
 
@@ -1860,7 +1864,7 @@ export default function AdminPurchasing() {
             setSelectedVendor(vendor);
             setShowVendorModal(true);
           }}
-          onCreatePO={async (vendor) => {
+          onCreatePO={async () => {
             setShowVendorDetail(false);
             // Pre-select the vendor for the new PO
             setSelectedPO(null);
@@ -1868,7 +1872,7 @@ export default function AdminPurchasing() {
               await fetchCompanySettings();
             }
             setShowPOModal(true);
-            // Note: POCreateModal would need to accept a preselectedVendorId prop
+            // TODO: POCreateModal could accept preselectedVendorId prop
           }}
           onViewPO={async (poId) => {
             setShowVendorDetail(false);
