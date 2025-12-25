@@ -144,7 +144,7 @@ export default function OrderDetail() {
               await explodeBOM(quoteData.product_id, data.quantity);
             }
           }
-        } catch (err) {
+        } catch {
           // Quote fetch failure is non-critical - BOM explosion will just be skipped
         }
       }
@@ -177,7 +177,7 @@ export default function OrderDetail() {
         const data = await res.json();
         setProductionOrders(data.items || data || []);
       }
-    } catch (err) {
+    } catch {
       // Production orders fetch failure is non-critical - production list will just be empty
     }
   };
@@ -203,7 +203,7 @@ export default function OrderDetail() {
         const data = await paymentsRes.json();
         setPayments(data.items || []);
       }
-    } catch (err) {
+    } catch {
       // Payment fetch failure is non-critical
     }
   };
@@ -226,7 +226,7 @@ export default function OrderDetail() {
         fetchPaymentData(),
       ]);
       toast.success("Data refreshed");
-    } catch (err) {
+    } catch {
       toast.error("Failed to refresh");
     } finally {
       setRefreshing(false);
@@ -381,7 +381,7 @@ export default function OrderDetail() {
       } catch (routingErr) {
         // Routing is optional - don't fail
       }
-    } catch (err) {
+    } catch {
       // BOM explosion failure - material requirements section will be empty
     } finally {
       setExploding(false);
@@ -583,7 +583,7 @@ export default function OrderDetail() {
       } else {
         toast.info("Create a production order first to check material availability");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to check availability");
     } finally {
       setCheckingAvailability(false);

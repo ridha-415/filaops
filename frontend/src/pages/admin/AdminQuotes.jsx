@@ -67,7 +67,7 @@ export default function AdminQuotes() {
         const data = await res.json();
         setStats(data);
       }
-    } catch (err) {
+    } catch {
       // Stats fetch failure is non-critical
     }
   };
@@ -704,7 +704,7 @@ function QuoteFormModal({ quote, onSave, onClose, token }) {
         const data = await res.json();
         setProducts(data.items || data || []);
       }
-    } catch (err) {
+    } catch {
       // Products fetch failure will show empty list
     } finally {
       setLoading(false);
@@ -720,7 +720,7 @@ function QuoteFormModal({ quote, onSave, onClose, token }) {
         const data = await res.json();
         setCustomers(data.items || data || []);
       }
-    } catch (err) {
+    } catch {
       // Customers fetch failure is non-critical
     }
   };
@@ -738,7 +738,7 @@ function QuoteFormModal({ quote, onSave, onClose, token }) {
           setForm((f) => ({ ...f, apply_tax: data.tax_enabled }));
         }
       }
-    } catch (err) {
+    } catch {
       // Company settings fetch failure is non-critical
     }
   };
@@ -816,7 +816,7 @@ function QuoteFormModal({ quote, onSave, onClose, token }) {
             throw new Error(err.detail || "Failed to create customer");
           }
         }
-      } catch (err) {
+      } catch {
         console.error("Failed to create customer:", err);
         // Continue with quote creation even if customer creation fails
       }

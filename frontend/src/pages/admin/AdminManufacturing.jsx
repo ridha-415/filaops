@@ -94,7 +94,7 @@ export default function AdminManufacturing() {
         // Handle both array and {items: [...]} responses
         setProducts(Array.isArray(data) ? data : (data.items || data.products || []));
       }
-    } catch (err) {
+    } catch {
       // Products fetch failure is non-critical - product selector will just be empty
       setProducts([]);
     }
@@ -536,7 +536,7 @@ function WorkCenterCard({
         const data = await res.json();
         setResources(data);
       }
-    } catch (err) {
+    } catch {
       // Resources fetch failure is non-critical - resource list will just be empty
     } finally {
       setLoadingResources(false);
@@ -554,7 +554,7 @@ function WorkCenterCard({
         const data = await res.json();
         setPrinters(data);
       }
-    } catch (err) {
+    } catch {
       // Printers fetch failure is non-critical
     }
   };
@@ -619,7 +619,7 @@ function WorkCenterCard({
         if (res.ok) {
           successCount++;
         }
-      } catch (err) {
+      } catch {
         // Continue with next printer
       }
     }

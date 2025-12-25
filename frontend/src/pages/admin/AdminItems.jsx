@@ -597,7 +597,7 @@ export default function AdminItems() {
         const treeData = await treeRes.json();
         setCategoryTree(treeData);
       }
-    } catch (err) {
+    } catch {
       // Category fetch failure is non-critical - category tree will just be empty
     }
   }, [token]);

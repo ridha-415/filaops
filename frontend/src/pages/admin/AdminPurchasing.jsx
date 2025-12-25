@@ -330,7 +330,7 @@ export default function AdminPurchasing() {
         const data = await res.json();
         setPurchasingTrend(data);
       }
-    } catch (err) {
+    } catch {
       console.error("Failed to fetch purchasing trend:", err);
     } finally {
       setTrendLoading(false);
@@ -407,7 +407,7 @@ export default function AdminPurchasing() {
         const data = await res.json();
         setProducts(data.items || []);
       }
-    } catch (err) {
+    } catch {
       // Products fetch failure is non-critical - product selector will just be empty
     }
   };
@@ -423,7 +423,7 @@ export default function AdminPurchasing() {
         setLowStockItems(data.items || []);
         setLowStockSummary(data.summary || null);
       }
-    } catch (err) {
+    } catch {
       setError("Failed to load low stock items. Please refresh the page.");
     } finally {
       setLowStockLoading(false);
@@ -439,7 +439,7 @@ export default function AdminPurchasing() {
         const data = await res.json();
         setCompanySettings(data);
       }
-    } catch (err) {
+    } catch {
       // Non-critical - auto-calc tax just won't work
       console.error("Failed to fetch company settings:", err);
     }

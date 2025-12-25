@@ -19,7 +19,7 @@ export function emit(event, payload) {
   for (const cb of set) {
     try {
       cb(payload);
-    } catch (e) {
+    } catch {
       /* ignore */
     }
   }

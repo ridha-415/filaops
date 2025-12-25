@@ -31,7 +31,7 @@ export default function AdminLogin() {
         navigate("/onboarding");
         return;
       }
-    } catch (err) {
+    } catch {
       // Show connection error - this helps users diagnose VITE_API_URL issues
       setApiError(
         `Cannot connect to API at ${API_URL}. ` +

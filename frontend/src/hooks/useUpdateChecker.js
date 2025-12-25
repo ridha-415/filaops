@@ -49,7 +49,7 @@ export const useUpdateChecker = () => {
 
             return data;
 
-        } catch (err) {
+        } catch {
             console.error('Update check failed:', err);
             setError(err.message);
 

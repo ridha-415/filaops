@@ -103,10 +103,10 @@ export function createApiClient(/** @type {ApiConfig} */ cfg) {
           status: res.status,
           message,
         });
-      } catch {}
+      } catch { /* emit error silently */ }
       try {
         cfg.onError?.(err);
-      } catch {}
+      } catch { /* callback error silently */ }
       throw err;
     }
   }

@@ -74,7 +74,7 @@ export default function AdminInventoryTransactions() {
         setProducts(data.items || []);
       }
       // Non-critical: Products fetch failure - dropdown will be empty but page still works
-    } catch (err) {
+    } catch {
       // Non-critical: Products fetch failure - dropdown will be empty but page still works
     }
   };
@@ -95,7 +95,7 @@ export default function AdminInventoryTransactions() {
         const data = await res.json();
         setLocations(data);
       }
-    } catch (err) {
+    } catch {
       // Locations fetch failure is non-critical - location selector will be empty
     }
   };

@@ -39,7 +39,7 @@ export default function Setup() {
         // Already set up - redirect to login
         navigate("/admin/login");
       }
-    } catch (err) {
+    } catch {
       setError("Cannot connect to server. Please ensure FilaOps is running.");
     } finally {
       setLoading(false);

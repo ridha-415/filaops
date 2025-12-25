@@ -202,7 +202,7 @@ function PurchaseRequestModal({ line, onClose, token, onSuccess }) {
           const data = await res.json();
           setVendors(data);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load vendors. Please refresh the page.");
       } finally {
         setLoadingVendors(false);
@@ -758,7 +758,7 @@ function BOMDetailView({
           }
         }
       }
-    } catch (err) {
+    } catch {
       // Product routing fetch failure is non-critical - routing section will just be empty
     }
   }, [token, bom.product_id]);
@@ -779,7 +779,7 @@ function BOMDetailView({
           const data = await res.json();
           setCostRollup(data);
         }
-      } catch (err) {
+      } catch {
         // Cost rollup fetch failure is non-critical - cost display will just be empty
       }
     };
@@ -796,7 +796,7 @@ function BOMDetailView({
           const data = await res.json();
           setRoutingTemplates(data.items || data);
         }
-      } catch (err) {
+      } catch {
         // Routing templates fetch failure is non-critical - templates list will just be empty
       }
     };
@@ -813,7 +813,7 @@ function BOMDetailView({
           const data = await res.json();
           setProducts(data.items || data);
         }
-      } catch (err) {
+      } catch {
         toast.error("Failed to load products. Please refresh the page.");
       }
     };
@@ -827,7 +827,7 @@ function BOMDetailView({
           const data = await res.json();
           setUoms(data);
         }
-      } catch (err) {
+      } catch {
         // UOM fetch failure is non-critical
       }
     };
@@ -844,7 +844,7 @@ function BOMDetailView({
           const data = await res.json();
           setWorkCenters(data);
         }
-      } catch (err) {
+      } catch {
         // Work centers fetch failure is non-critical
       }
     };
@@ -2370,7 +2370,7 @@ function CreateBOMForm({ onClose, onCreate, token, existingBoms = [] }) {
         const data = await res.json();
         setProducts(data.items || data);
       }
-    } catch (err) {
+    } catch {
       setError("Failed to load products. Please refresh the page.");
     }
   }, [token]);

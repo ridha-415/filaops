@@ -116,7 +116,7 @@ export default function AdminPrinters() {
         const data = await res.json();
         setBrandInfo(data);
       }
-    } catch (err) {
+    } catch {
       // Non-critical
     }
   };
@@ -130,7 +130,7 @@ export default function AdminPrinters() {
         const data = await res.json();
         setActiveWork(data.printers || {});
       }
-    } catch (err) {
+    } catch {
       // Non-critical - polling will retry
     }
   };
@@ -145,7 +145,7 @@ export default function AdminPrinters() {
         const data = await res.json();
         setMaintenanceLogs(data.items || []);
       }
-    } catch (err) {
+    } catch {
       console.error("Error fetching maintenance logs:", err);
     } finally {
       setMaintenanceLoading(false);
@@ -161,7 +161,7 @@ export default function AdminPrinters() {
         const data = await res.json();
         setMaintenanceDue(data);
       }
-    } catch (err) {
+    } catch {
       // Non-critical
     }
   };
@@ -1009,7 +1009,7 @@ function PrinterModal({ printer, onClose, onSave, brandInfo }) {
           const data = await res.json();
           setWorkCenters(data);
         }
-      } catch (err) {
+      } catch {
         // Non-critical - work center selection is optional
       }
     };
@@ -1069,7 +1069,7 @@ function PrinterModal({ printer, onClose, onSave, brandInfo }) {
         const data = await res.json();
         setForm({ ...form, code: data.code });
       }
-    } catch (err) {
+    } catch {
       // Non-critical
     }
   };
