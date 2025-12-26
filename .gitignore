@@ -13,7 +13,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/  # Commented out - was ignoring frontend/src/lib/
 lib64/
 parts/
 sdist/
@@ -173,6 +173,10 @@ docs/sop/
 # PowerShell scripts (local convenience)
 *.ps1
 !start-backend.ps1
+!start-frontend.ps1
+!start-all.ps1
+!install.ps1
+!install-frontend.ps1
 
 # Temp/generated HTML files (specific paths only)
 frontend/dist/**/*.html
@@ -222,8 +226,8 @@ customer_*.csv
 order_*.csv
 
 # Deployment configs with secrets
-docker-compose.override.yml
-docker-compose.local.yml
+# docker-compose.override.yml (Docker no longer used)
+# docker-compose.local.yml (Docker no longer used)
 *.secrets.yml
 *.secrets.yaml
 
@@ -366,4 +370,13 @@ backend/GCS_SETUP.md
 
 # Internal metrics tracking (private business data)
 docs/metrics/
+
+# Robot Army - Internal Testing Framework (DO NOT COMMIT)
+# Keep this internal until ready for separate open-source release
+agents/
+
+# Internal team briefings and planning
+TEAM_BRIEFING.md
+MARCHING_ORDERS.md
+
 .fake

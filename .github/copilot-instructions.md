@@ -4,9 +4,9 @@
 
 FilaOps is a **3D printing ERP system** built for print farm operations. Core stack:
 
-- **Backend**: FastAPI + SQLAlchemy (SQL Server/SQL Server Express)
+- **Backend**: FastAPI + SQLAlchemy (PostgreSQL)
 - **Frontend**: React + Vite + Tailwind CSS (⚠️ **DEVELOPMENT MODE ONLY** - production builds disabled)
-- **Deployment**: Docker Compose (dev and production environments run simultaneously)
+- **Deployment**: Native installation (PostgreSQL, Python, Node.js)
 
 ## ⚠️ CRITICAL: Frontend Production Builds DISABLED
 
@@ -18,15 +18,15 @@ FilaOps is a **3D printing ERP system** built for print farm operations. Core st
 
 ## Critical Architecture Patterns
 
-### Database: SQL Server Quirks
+### Database: PostgreSQL
 
-**Always use `== True` for boolean filters** (not `.is_(True)`):
+**Use `== True` for boolean filters** (or `.is_(True)` for explicit checks):
 
 ```python
-# CORRECT - SQL Server requires this
+# Standard pattern - works with PostgreSQL
 .filter(Model.active == True)  # noqa: E712
 
-# WRONG - generates invalid SQL on SQL Server
+# Explicit check (also valid)
 .filter(Model.active.is_(True))
 ```
 
@@ -42,21 +42,27 @@ def get_items(db: Session = Depends(get_db)):
 
 ### Multi-Environment Setup
 
-Development and production **coexist** via separate Docker networks:
+Development and production use **native server processes**:
 
-|                | **Development**          | **Production**       |
-| -------------- | ------------------------ | -------------------- |
-| Docker compose | `docker-compose.dev.yml` | `docker-compose.yml` |
-| Frontend       | localhost:5174           | localhost:5173       |
-| Backend        | localhost:8001           | localhost:8000       |
-| Database port  | 1434                     | 1433                 |
-| Volumes        | `filaops-dev-*`          | `filaops-*`          |
+|             | **Development**      | **Production**       |
+| ----------- | -------------------- | -------------------- |
+| Frontend    | localhost:5173       | localhost:5173       |
+| Backend     | localhost:8000       | localhost:8000       |
+| Database    | localhost:5432       | localhost:5432       |
+| PostgreSQL  | filaops_db           | filaops_prod         |
 
-**Always use** `-f docker-compose.dev.yml` when working in this repo:
+**Start development servers**:
 
 ```bash
-docker-compose -f docker-compose.dev.yml up -d
-docker-compose -f docker-compose.dev.yml logs -f backend
+# Terminal 1 - Backend
+cd backend
+source venv/bin/activate  # Mac/Linux
+.\venv\Scripts\activate   # Windows
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# Terminal 2 - Frontend
+cd frontend
+npm run dev
 ```
 
 ### API Structure
@@ -98,7 +104,7 @@ Use `127.0.0.1` not `localhost` to avoid IPv6/IPv4 issues.
 - **Unit tests**: `backend/tests/unit/` (business logic, e.g., MRP explosion)
 - **Integration tests**: `backend/tests/integration/` (API endpoints)
 - **E2E tests**: `frontend/e2e/` (Playwright)
-- Tests use **in-memory SQLite** (no SQL Server required for CI)
+- Tests use **in-memory SQLite** (no PostgreSQL required for CI)
 
 Run specific test suites:
 
@@ -214,14 +220,14 @@ See [docs/ORDER_STATUS_WORKFLOW.md](docs/ORDER_STATUS_WORKFLOW.md) for complete 
 | `backend/app/services/mrp.py` | BOM explosion, shortage calculation                   |
 | `backend/database.py`         | Legacy DB setup (use `app/db/session.py` instead)     |
 | `frontend/src/App.jsx`        | React Router configuration                            |
-| `docker-compose.dev.yml`      | **Development environment** (ALWAYS use this)         |
+| `INSTALL.md`                  | Installation guide for native PostgreSQL environment  |
 | `HOW_IT_WORKS.md`             | ERP concepts explained (BOMs, routings, traceability) |
 
 ## Common Pitfalls
 
-1. **Don't use bare `docker-compose`** in dev - always `-f docker-compose.dev.yml`
-2. **SQL Server booleans**: `== True` not `.is_(True)`
-3. **API URL changes**: Requires frontend rebuild (`docker-compose build --no-cache frontend`)
+1. **Virtual environment**: Always activate before running backend (`source venv/bin/activate`)
+2. **PostgreSQL migrations**: Run `alembic upgrade head` after pulling schema changes
+3. **API URL changes**: Requires frontend rebuild (`npm run build`)
 4. **Type hints**: Required on all functions (enforced by mypy)
 5. **First-run setup**: App auto-detects no users and shows `/setup` wizard (don't hardcode admin creation)
 

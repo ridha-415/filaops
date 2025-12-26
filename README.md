@@ -5,7 +5,6 @@
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
-[![Docker Ready](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/FAhxySnRwa)
 
 ---
@@ -18,7 +17,7 @@ FilaOps was built by someone who runs a print farm and got tired of spreadsheets
 
 **What makes it different:**
 - **3D printing native** - BOMs that understand filament, print times, and material costs
-- **Actually usable** - Docker setup, dark theme UI, no enterprise sales calls required
+- **Actually usable** - Simple PostgreSQL setup, dark theme UI, no enterprise sales calls required
 - **Self-hosted & open** - Your data stays yours. No cloud dependency, no vendor lock-in
 - **Production-grade** - Serial/lot traceability ready for medical device and aerospace compliance
 
@@ -26,19 +25,31 @@ FilaOps was built by someone who runs a print farm and got tired of spreadsheets
 
 ## Quick Start
 
+Choose your preferred installation method:
+
+### 🐳 Docker (Recommended for Quick Start)
+
 ```bash
 git clone https://github.com/Blb3D/filaops.git
 cd filaops
-docker-compose up -d
+cp .env.example .env
+docker-compose up --build
 ```
 
-Open http://localhost:5173 — the **Setup Wizard** will guide you through creating your admin account.
+Open http://localhost:5173 — done! See **[Docker Setup Guide](FilaOps_Zero-to-Running_Docker.md)** for details.
 
-That's it. Database, API, and UI are all pre-configured.
+### 💻 Native Installation
 
-📖 **[Full Installation Guide](INSTALL.md)** for manual setup or troubleshooting.
+For development or if you prefer running services directly:
 
-> **Note for developers:** There's also a `docker-compose.dev.yml` file for local development. End users should use `docker-compose.yml` (the default).
+| Platform | Guide | Prerequisites |
+|----------|-------|---------------|
+| **Windows** | [Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
+| **macOS/Linux** | [macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
+
+After setup, open http://localhost:5173 — the **Setup Wizard** will guide you through creating your admin account.
+
+📖 **[Getting Started Guide](GETTING_STARTED.md)** for detailed instructions and troubleshooting.
 
 ---
 
@@ -79,7 +90,6 @@ The core ERP is fully functional and free to self-host. Pro and Enterprise tiers
 | Serial/Lot Traceability | ✅ | ✅ | ✅ |
 | Multi-User | ✅ | ✅ | ✅ |
 | REST API | ✅ | ✅ | ✅ |
-| Docker Deployment | ✅ | ✅ | ✅ |
 | | | | |
 | **Integrations** | | | |
 | Customer Quote Portal | — | ✅ | ✅ |
@@ -106,11 +116,34 @@ The community version uses **development mode builds** for the frontend to maxim
 - ✅ **Unminified code** - Easy to debug and understand
 - ✅ **Source maps included** - Full stack traces with real line numbers
 - ✅ **Readable variable names** - Contributing PRs is easier
+- ✅ **Instant hot reload** - Changes appear immediately (no Docker rebuilds)
 - ⚠️ **Larger bundle size** (~2MB vs ~1MB minified)
 
 **This is intentional for self-hosted deployments** where source code is already visible and performance impact is negligible on local networks.
 
 > 📝 **For SaaS/Production hosting:** Production builds require refactoring ~30 components to fix React hook timing issues. See `frontend/PRODUCTION_BUILD_BLOCKED.md` for details. This only affects public-facing deployments; self-hosted users are unaffected.
+
+## 🆕 Recent Improvements
+
+### PostgreSQL-Only Architecture
+- **Simplified setup** - No Docker required, direct PostgreSQL connection
+- **Faster performance** - Native database drivers, no container overhead
+- **Easier debugging** - Direct access to database tools
+- **Better reliability** - Fewer moving parts
+
+### Enhanced Production Scheduling
+- **Gantt chart interface** - Visual timeline for production orders
+- **Drag & drop scheduling** - Easily reschedule orders
+- **Resource management** - Assign orders to specific machines
+- **Auto-arrange** - Optimize schedule layout automatically
+
+### Frontend Enhancements
+- **Better error handling** - More informative error messages
+- **Centralized API client** - Automatic retry and error recovery
+- **Improved components** - Enhanced scheduling, scrap, and update modals
+- **Instant hot reload** - See changes immediately during development
+
+See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)** for complete details.
 
 ---
 
@@ -118,7 +151,6 @@ The community version uses **development mode builds** for the frontend to maxim
 
 | | |
 |---|---|
-| **[INSTALL.md](INSTALL.md)** | Installation guide (Docker & manual) |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | System overview and workflows |
 | **[docs/EMAIL_CONFIGURATION.md](docs/EMAIL_CONFIGURATION.md)** | Email/SMTP setup guide |
 | **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | Known issues and workarounds |
@@ -133,13 +165,13 @@ The community version uses **development mode builds** for the frontend to maxim
 
 ### Local Development Setup
 
-**Prerequisites:** Python 3.11+, Node.js 18+, SQL Server Express, ODBC Driver 17
+**Prerequisites:** Python 3.11+, Node.js 18+, PostgreSQL 16+
 
 ```bash
 # Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env
+# Create .env file with PostgreSQL connection details
 python -m uvicorn app.main:app --reload --port 8000
 
 # Frontend (separate terminal)
@@ -150,6 +182,8 @@ npm run dev
 
 - API docs: http://localhost:8000/docs
 - Admin UI: http://localhost:5173
+
+See **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** or **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** for complete setup instructions.
 
 ### Project Structure
 
@@ -163,8 +197,7 @@ filaops/
 │   │   └── core/      # Config, security
 │   └── tests/
 ├── frontend/          # React admin UI
-├── docs/              # Documentation
-└── docker-compose.yml
+└── docs/              # Documentation
 ```
 
 ### Contributing

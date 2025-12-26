@@ -44,8 +44,8 @@ export default function QCInspectionModal({
         const err = await res.json();
         toast.error(err.detail || "Failed to submit QC inspection");
       }
-    } catch (err) {
-      toast.error(err.message || "Network error");
+    } catch (catchErr) {
+      toast.error(catchErr.message || "Network error");
     } finally {
       setSubmitting(false);
     }

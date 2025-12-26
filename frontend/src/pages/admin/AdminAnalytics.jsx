@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useFeatureFlags } from "../../hooks/useFeatureFlags";
 import ProFeaturesAnnouncement from "../../components/ProFeaturesAnnouncement";
+import { API_URL } from "../../config/api";
 
 const AdminAnalytics = () => {
   const { isPro, tier, loading: flagsLoading } = useFeatureFlags();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [days, setDays] = useState(30);
 
   useEffect(() => {
@@ -18,6 +20,7 @@ const AdminAnalytics = () => {
 
   const fetchAnalytics = async () => {
     setLoading(true);
+    setError(null);
     try {
       const token = localStorage.getItem("access_token");
       if (!token) {
@@ -26,7 +29,7 @@ const AdminAnalytics = () => {
       }
 
       const response = await fetch(
-        `http://127.0.0.1:8001/api/v1/admin/analytics/dashboard?days=${days}`,
+        `${API_URL}/api/v1/admin/analytics/dashboard?days=${days}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -44,10 +47,13 @@ const AdminAnalytics = () => {
         const data = await response.json();
         setAnalytics(data);
       } else {
-        // Analytics fetch failed - analytics section will be empty
+        const errorText = await response.text();
+        console.error("Analytics fetch failed:", response.status, errorText);
+        setError(`Failed to load analytics (${response.status})`);
       }
-    } catch (error) {
-      // Analytics fetch failed - analytics section will be empty
+    } catch (err) {
+      console.error("Analytics fetch error:", err);
+      setError(err.message || "Failed to connect to analytics service");
     } finally {
       setLoading(false);
     }
@@ -55,6 +61,28 @@ const AdminAnalytics = () => {
 
   if (flagsLoading || loading) {
     return <div className="p-6 text-white">Loading analytics...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-6">
+          <h2 className="text-xl font-bold text-red-400 mb-2">
+            Analytics Error
+          </h2>
+          <p className="text-gray-300 mb-2">{error}</p>
+          <p className="text-gray-400 text-sm">
+            Check browser console for details. If problem persists, verify the backend is running.
+          </p>
+          <button
+            onClick={() => fetchAnalytics()}
+            className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!isPro) {

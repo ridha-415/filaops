@@ -2,12 +2,11 @@
 FilaOps Version Management System
 
 Handles version detection, update checking, and GitHub release integration.
-Docker-compatible implementation using environment variables and database queries.
+Uses git-based versioning for native PostgreSQL installation.
 """
 
 import subprocess
 import requests
-import json
 import os
 import logging
 from datetime import datetime, timedelta
@@ -34,31 +33,34 @@ class VersionManager:
         """
         Get comprehensive current version information
 
-        Docker-compatible: Reads from FILAOPS_VERSION env var first,
-        falls back to git if available (dev mode), then to hardcoded fallback.
+        Reads from git tags if available, falls back to FILAOPS_VERSION env var,
+        then to hardcoded fallback.
 
         Returns:
             dict: Version info including version, build date, commit hash, etc.
         """
-        # Priority 1: Environment variable (set at Docker build time)
-        version = os.getenv('FILAOPS_VERSION')
+        # Priority 1: Git tag (for development and production)
+        version = None
+        try:
+            version = subprocess.check_output(
+                ['git', 'describe', '--tags', '--abbrev=0'],
+                stderr=subprocess.DEVNULL,
+                text=True
+            ).strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
 
-        # Priority 2: Git tag (for development environments)
+        # Priority 2: Environment variable (fallback)
         if not version:
-            try:
-                version = subprocess.check_output(
-                    ['git', 'describe', '--tags', '--abbrev=0'],
-                    stderr=subprocess.DEVNULL,
-                    cwd=Path(__file__).parent.parent.parent.parent  # Go to repo root
-                ).decode().strip()
+            version = os.getenv('FILAOPS_VERSION')
 
-                # Clean up git tag (remove 'v' prefix if present)
-                if version.startswith('v'):
-                    version = version[1:]
+        # Priority 3: Fallback to hardcoded version
+        if not version:
+            version = VersionManager.FALLBACK_VERSION
 
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                # Priority 3: Fallback to hardcoded version
-                version = VersionManager.FALLBACK_VERSION
+        # Clean up git tag (remove 'v' prefix if present)
+        if version and version.startswith('v'):
+            version = version[1:]
 
         # Get commit hash (only works in dev mode with git)
         commit_hash = "unknown"

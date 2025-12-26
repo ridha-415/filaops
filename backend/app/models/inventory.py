@@ -1,7 +1,7 @@
 """
 Inventory models
 """
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Text, Boolean, Computed
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, Date, ForeignKey, Text, Boolean, Computed
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -42,7 +42,7 @@ class Inventory(Base):
     # Quantities
     on_hand_quantity = Column(Numeric(10, 2), default=0, nullable=False)
     allocated_quantity = Column(Numeric(10, 2), default=0, nullable=False)
-    # available_quantity is a computed column in SQL Server (on_hand - allocated)
+    # available_quantity is a computed column (on_hand - allocated)
     available_quantity = Column(Numeric(10, 2), Computed("on_hand_quantity - allocated_quantity"))
 
     # Metadata
@@ -91,7 +91,17 @@ class InventoryTransaction(Base):
     # Notes
     notes = Column(Text, nullable=True)
 
+    # Negative Inventory Approval (for transactions that would cause negative inventory)
+    requires_approval = Column(Boolean, default=False, nullable=False)
+    approval_reason = Column(Text, nullable=True)
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+
     # Metadata
+    # transaction_date: User-entered date when the transaction actually occurred
+    # (e.g., when goods were physically received, not when entered in system)
+    # Distinct from created_at which is always the system entry timestamp
+    transaction_date = Column(Date, nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_by = Column(String(100), nullable=True)
 

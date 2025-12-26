@@ -177,6 +177,14 @@ class ProductionOrderUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class ProductionOrderScheduleRequest(BaseModel):
+    """Schedule a production order to a specific resource and time"""
+    scheduled_start: datetime
+    scheduled_end: datetime
+    resource_id: Optional[int] = Field(None, description="Resource/machine ID to assign")
+    notes: Optional[str] = None
+
+
 class ProductionOrderStatusUpdate(BaseModel):
     """Update just the status (with optional timestamps)"""
     status: ProductionOrderStatus
@@ -533,3 +541,37 @@ class QCInspectionResponse(BaseModel):
     sales_order_updated: bool = False
     sales_order_status: Optional[str] = None
     message: str
+
+
+# ============================================================================
+# Spool Consumption Schemas
+# ============================================================================
+
+class SpoolUsage(BaseModel):
+    """Record of spool used during production - enables material traceability"""
+    product_id: int = Field(..., description="Material product ID from BOM")
+    spool_id: int = Field(..., description="Spool ID being consumed")
+    weight_consumed_g: Optional[Decimal] = Field(
+        None, ge=0, description="Weight consumed in grams (calculated from BOM if not provided)"
+    )
+
+
+class ProductionOrderCompleteRequest(BaseModel):
+    """Request body for completing a production order with optional spool tracking"""
+    quantity_completed: Optional[Decimal] = Field(None, ge=0)
+    quantity_scrapped: Optional[Decimal] = Field(None, ge=0)
+    force_close_short: bool = Field(False, description="Explicitly close order short without producing all units")
+    notes: Optional[str] = None
+    spools_used: Optional[List[SpoolUsage]] = Field(
+        None, description="List of spools consumed during production (for traceability)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "quantity_completed": 10,
+                "spools_used": [
+                    {"product_id": 5, "spool_id": 12, "weight_consumed_g": 150.5}
+                ]
+            }
+        }

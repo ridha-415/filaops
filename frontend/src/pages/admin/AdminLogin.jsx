@@ -31,13 +31,13 @@ export default function AdminLogin() {
         navigate("/onboarding");
         return;
       }
-    } catch (err) {
+    } catch {
       // Show connection error - this helps users diagnose VITE_API_URL issues
       setApiError(
         `Cannot connect to API at ${API_URL}. ` +
           (window.location.hostname !== "localhost" &&
           window.location.hostname !== "127.0.0.1"
-            ? `If accessing remotely, ensure VITE_API_URL is set to the server's address (e.g., http://${window.location.hostname}:8001) and rebuild the frontend.`
+            ? `If accessing remotely, ensure VITE_API_URL is set to the server's address (e.g., http://${window.location.hostname}:8000) and rebuild the frontend.`
             : "Please ensure the backend is running.")
       );
     } finally {

@@ -6,6 +6,12 @@ import RoutingEditor from "../../components/RoutingEditor";
 import StatCard from "../../components/StatCard";
 import { API_URL } from "../../config/api";
 import { useToast } from "../../components/Toast";
+import {
+  validateRequired,
+  validateLength,
+  validateNumber,
+} from "../../utils/validation";
+import { RequiredIndicator } from "../../components/ErrorMessage";
 
 // Item type options
 const ITEM_TYPES = [
@@ -289,8 +295,59 @@ function CategoryModal({ category, categories, onSave, onClose }) {
     is_active: category?.is_active ?? true,
   });
 
+  const [errors, setErrors] = useState({});
+
+  const validateCategoryForm = () => {
+    const validationErrors = {};
+
+    const codeError = validateRequired(form.code, "Category code");
+    if (codeError) validationErrors.code = codeError;
+    else {
+      const lengthError = validateLength(form.code, "Category code", {
+        min: 2,
+        max: 20,
+      });
+      if (lengthError) validationErrors.code = lengthError;
+    }
+
+    const nameError = validateRequired(form.name, "Category name");
+    if (nameError) validationErrors.name = nameError;
+    else {
+      const lengthError = validateLength(form.name, "Category name", {
+        min: 2,
+        max: 100,
+      });
+      if (lengthError) validationErrors.name = lengthError;
+    }
+
+    if (form.description) {
+      const descError = validateLength(form.description, "Description", {
+        max: 500,
+      });
+      if (descError) validationErrors.description = descError;
+    }
+
+    if (form.sort_order !== "" && form.sort_order !== null) {
+      const sortError = validateNumber(form.sort_order, "Sort order", {
+        min: 0,
+        max: 9999,
+      });
+      if (sortError) validationErrors.sort_order = sortError;
+    }
+
+    return validationErrors;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrors({});
+
+    const validationErrors = validateCategoryForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     const data = { ...form };
     if (data.parent_id === "") data.parent_id = null;
     else if (data.parent_id) data.parent_id = parseInt(data.parent_id);
@@ -310,27 +367,47 @@ function CategoryModal({ category, categories, onSave, onClose }) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Code *</label>
+            <label className="block text-sm text-gray-400 mb-1">
+              Code <RequiredIndicator />
+            </label>
             <input
               type="text"
               value={form.code}
-              onChange={(e) =>
-                setForm({ ...form, code: e.target.value.toUpperCase() })
-              }
-              required
+              onChange={(e) => {
+                setForm({ ...form, code: e.target.value.toUpperCase() });
+                setErrors({ ...errors, code: "" });
+              }}
               placeholder="e.g. FILAMENT"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+              className={`w-full bg-gray-800 border rounded-lg px-4 py-2 text-white ${
+                errors.code
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-700"
+              }`}
             />
+            {errors.code && (
+              <div className="text-red-400 text-sm mt-1">{errors.code}</div>
+            )}
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Name *</label>
+            <label className="block text-sm text-gray-400 mb-1">
+              Name <RequiredIndicator />
+            </label>
             <input
               type="text"
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+              onChange={(e) => {
+                setForm({ ...form, name: e.target.value });
+                setErrors({ ...errors, name: "" });
+              }}
+              className={`w-full bg-gray-800 border rounded-lg px-4 py-2 text-white ${
+                errors.name
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-700"
+              }`}
             />
+            {errors.name && (
+              <div className="text-red-400 text-sm mt-1">{errors.name}</div>
+            )}
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">
@@ -355,12 +432,23 @@ function CategoryModal({ category, categories, onSave, onClose }) {
             </label>
             <textarea
               value={form.description}
-              onChange={(e) =>
-                setForm({ ...form, description: e.target.value })
-              }
+              onChange={(e) => {
+                setForm({ ...form, description: e.target.value });
+                setErrors({ ...errors, description: "" });
+              }}
               rows={2}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+              className={`w-full bg-gray-800 border rounded-lg px-4 py-2 text-white ${
+                errors.description
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-700"
+              }`}
+              maxLength={500}
             />
+            {errors.description && (
+              <div className="text-red-400 text-sm mt-1">
+                {errors.description}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -370,11 +458,21 @@ function CategoryModal({ category, categories, onSave, onClose }) {
               <input
                 type="number"
                 value={form.sort_order}
-                onChange={(e) =>
-                  setForm({ ...form, sort_order: e.target.value })
-                }
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                onChange={(e) => {
+                  setForm({ ...form, sort_order: e.target.value });
+                  setErrors({ ...errors, sort_order: "" });
+                }}
+                className={`w-full bg-gray-800 border rounded-lg px-4 py-2 text-white ${
+                  errors.sort_order
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-gray-700"
+                }`}
               />
+              {errors.sort_order && (
+                <div className="text-red-400 text-sm mt-1">
+                  {errors.sort_order}
+                </div>
+              )}
             </div>
             <div className="flex items-center pt-6">
               <input
@@ -453,6 +551,28 @@ export default function AdminItems() {
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false);
 
+  // Inventory adjustment states
+  const [editingQtyItem, setEditingQtyItem] = useState(null);
+  const [editingQtyValue, setEditingQtyValue] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [adjustmentNotes, setAdjustmentNotes] = useState("");
+  const [adjustingQty, setAdjustingQty] = useState(false);
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
+
+  // Adjustment reason codes
+  const ADJUSTMENT_REASONS = [
+    { value: "Physical count", label: "Physical count" },
+    { value: "Found inventory", label: "Found inventory" },
+    { value: "Damaged goods", label: "Damaged goods" },
+    { value: "Theft/Loss", label: "Theft/Loss" },
+    { value: "Expired material", label: "Expired material" },
+    { value: "Quality issue", label: "Quality issue" },
+    { value: "Returned goods", label: "Returned goods" },
+    { value: "Vendor error", label: "Vendor error" },
+    { value: "System correction", label: "System correction" },
+    { value: "Other", label: "Other" },
+  ];
+
   const token = localStorage.getItem("adminToken");
 
   const fetchCategories = useCallback(async () => {
@@ -477,7 +597,7 @@ export default function AdminItems() {
         const treeData = await treeRes.json();
         setCategoryTree(treeData);
       }
-    } catch (err) {
+    } catch {
       // Category fetch failure is non-critical - category tree will just be empty
     }
   }, [token]);
@@ -676,6 +796,98 @@ export default function AdminItems() {
     filteredItems.length > 0 && selectedItems.size === filteredItems.length;
   const isIndeterminate =
     selectedItems.size > 0 && selectedItems.size < filteredItems.length;
+
+  // Inventory quantity adjustment handler
+  const handleSaveQtyAdjustment = async (item) => {
+    const inputQty = parseFloat(editingQtyValue);
+    if (isNaN(inputQty) || inputQty < 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+
+    // Check if reason is needed
+    if (!adjustmentReason.trim()) {
+      setShowAdjustmentModal(true);
+      return;
+    }
+
+    // Send grams directly for materials (API will handle conversion if needed)
+    let newQty = inputQty;
+    let inputUnit = item.material_type_id ? "G" : (item.unit || "EA");
+
+    setAdjustingQty(true);
+    try {
+      // Use custom reason if "Other" is selected, otherwise use the selected reason
+      const finalReason = adjustmentReason === "Other" && adjustmentNotes.trim() 
+        ? adjustmentNotes.trim() 
+        : adjustmentReason.trim();
+      
+      const params = new URLSearchParams({
+        product_id: item.id.toString(),
+        location_id: "1", // Default location
+        new_on_hand_quantity: newQty.toString(),
+        adjustment_reason: finalReason,
+        input_unit: inputUnit, // Pass the input unit for proper conversion
+      });
+      // Add notes only if not "Other" (since notes becomes the reason for "Other")
+      if (adjustmentReason !== "Other" && adjustmentNotes.trim()) {
+        params.set("notes", adjustmentNotes.trim());
+      }
+
+      const res = await fetch(
+        `${API_URL}/api/v1/inventory/adjust-quantity?${params}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to adjust inventory");
+      }
+
+      const result = await res.json();
+      // API now returns grams for materials, so no conversion needed
+      const displayQty = item.material_type_id ? result.new_quantity.toFixed(0) : result.new_quantity.toFixed(0);
+      const displayUnit = item.material_type_id ? "g" : (item.unit || "EA");
+      const prevQty = item.material_type_id ? result.previous_quantity.toFixed(0) : result.previous_quantity.toFixed(0);
+      toast.success(
+        `Inventory adjusted: ${prevQty} → ${displayQty} ${displayUnit}`
+      );
+
+      // Reset editing state
+      setEditingQtyItem(null);
+      setEditingQtyValue("");
+      setAdjustmentReason("");
+      setAdjustmentNotes("");
+      setShowAdjustmentModal(false);
+
+      // Refresh items to show updated quantities
+      fetchItems();
+    } catch (err) {
+      toast.error(err.message || "Failed to adjust inventory quantity");
+    } finally {
+      setAdjustingQty(false);
+    }
+  };
+
+  const handleConfirmAdjustment = () => {
+    if (!adjustmentReason.trim()) {
+      toast.error("Please select an adjustment reason");
+      return;
+    }
+    if (adjustmentReason === "Other" && !adjustmentNotes.trim()) {
+      toast.error("Please specify the reason for 'Other'");
+      return;
+    }
+    if (editingQtyItem) {
+      handleSaveQtyAdjustment(editingQtyItem);
+    }
+  };
 
   // Bulk update handler
   const handleBulkUpdate = async (updateData) => {
@@ -1083,9 +1295,21 @@ export default function AdminItems() {
                       {item.category_name || "-"}
                     </td>
                     <td className="py-3 px-4 text-right text-gray-400">
-                      {item.standard_cost
-                        ? `$${parseFloat(item.standard_cost).toFixed(2)}`
-                        : "-"}
+                      {item.standard_cost ? (
+                        item.material_type_id ? (
+                          // For materials: show per-KG cost (costs are stored per KG)
+                          <div className="flex flex-col items-end">
+                            <span>${parseFloat(item.standard_cost).toFixed(2)}/KG</span>
+                            <span className="text-xs text-gray-500">
+                              ${(parseFloat(item.standard_cost) / 1000).toFixed(4)}/g
+                            </span>
+                          </div>
+                        ) : (
+                          `$${parseFloat(item.standard_cost).toFixed(2)}`
+                        )
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right text-green-400">
                       {/* Hide price for materials/supplies - not for sale */}
@@ -1096,21 +1320,108 @@ export default function AdminItems() {
                         : "-"}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <span
-                        className={
-                          item.needs_reorder ? "text-red-400" : "text-gray-300"
-                        }
-                      >
-                        {item.on_hand_qty != null
-                          ? parseFloat(item.on_hand_qty).toFixed(0)
-                          : "-"}
-                      </span>
+                      {editingQtyItem?.id === item.id ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              value={editingQtyValue}
+                              onChange={(e) => setEditingQtyValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  if (!adjustmentReason.trim()) {
+                                    setShowAdjustmentModal(true);
+                                  } else {
+                                    handleSaveQtyAdjustment(item);
+                                  }
+                                } else if (e.key === "Escape") {
+                                  setEditingQtyItem(null);
+                                  setEditingQtyValue("");
+                                  setAdjustmentReason("");
+                                  setAdjustmentNotes("");
+                                  setShowAdjustmentModal(false);
+                                }
+                              }}
+                              className="w-24 bg-gray-800 border border-blue-500 rounded px-2 py-1 text-white text-sm"
+                              autoFocus
+                              step={item.material_type_id ? "1" : "0.01"}
+                              min="0"
+                            />
+                            <span className="text-gray-400 text-xs">
+                              {item.material_type_id ? "g" : (item.unit || "EA")}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (!adjustmentReason.trim()) {
+                                setShowAdjustmentModal(true);
+                              } else {
+                                handleSaveQtyAdjustment(item);
+                              }
+                            }}
+                            disabled={adjustingQty}
+                            className="text-green-400 hover:text-green-300 text-sm disabled:opacity-50"
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingQtyItem(null);
+                              setEditingQtyValue("");
+                              setAdjustmentReason("");
+                              setAdjustmentNotes("");
+                              setShowAdjustmentModal(false);
+                            }}
+                            className="text-red-400 hover:text-red-300 text-sm"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingQtyItem(item);
+                            // API now returns grams for materials, so no conversion needed
+                            setEditingQtyValue(item.on_hand_qty != null ? parseFloat(item.on_hand_qty).toString() : "0");
+                            setAdjustmentReason("");
+                            setAdjustmentNotes("");
+                          }}
+                          className={`text-right hover:bg-gray-800 px-2 py-1 rounded ${
+                            item.needs_reorder ? "text-red-400" : "text-gray-300"
+                          } hover:text-white`}
+                          title="Click to edit on-hand quantity"
+                        >
+                          {item.on_hand_qty != null ? (
+                            <>
+                              {item.material_type_id 
+                                ? parseFloat(item.on_hand_qty).toFixed(0)  // Already in grams from API
+                                : parseFloat(item.on_hand_qty).toFixed(0)}
+                              <span className="text-gray-500 text-xs ml-1">
+                                {item.material_type_id ? "g" : (item.unit || "EA")}
+                              </span>
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </button>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right text-yellow-400">
                       {item.allocated_qty != null &&
-                      parseFloat(item.allocated_qty) > 0
-                        ? parseFloat(item.allocated_qty).toFixed(0)
-                        : "-"}
+                      parseFloat(item.allocated_qty) > 0 ? (
+                        <>
+                          {item.material_type_id 
+                            ? (parseFloat(item.allocated_qty) * 1000).toFixed(0)
+                            : parseFloat(item.allocated_qty).toFixed(0)}
+                          <span className="text-gray-500 text-xs ml-1">
+                            {item.material_type_id ? "g" : (item.unit || "EA")}
+                          </span>
+                        </>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <span
@@ -1123,9 +1434,18 @@ export default function AdminItems() {
                             : "text-green-400"
                         }
                       >
-                        {item.available_qty != null
-                          ? parseFloat(item.available_qty).toFixed(0)
-                          : "-"}
+                        {item.available_qty != null ? (
+                          <>
+                            {item.material_type_id 
+                              ? (parseFloat(item.available_qty) * 1000).toFixed(0)
+                              : parseFloat(item.available_qty).toFixed(0)}
+                            <span className="text-gray-500 text-xs ml-1">
+                              {item.material_type_id ? "g" : (item.unit || "EA")}
+                            </span>
+                          </>
+                        ) : (
+                          "-"
+                        )}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1347,6 +1667,98 @@ export default function AdminItems() {
             setSelectedItems(new Set());
           }}
         />
+      )}
+
+      {/* Adjustment Reason Modal */}
+      {showAdjustmentModal && editingQtyItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-white">
+                Adjustment Reason
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAdjustmentModal(false);
+                  setAdjustmentReason("");
+                  setAdjustmentNotes("");
+                }}
+                className="text-gray-400 hover:text-white text-xl"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-gray-400 mb-2">
+                Reason for Adjustment *
+              </label>
+              <select
+                value={adjustmentReason}
+                onChange={(e) => setAdjustmentReason(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                autoFocus
+              >
+                <option value="">Select a reason...</option>
+                {ADJUSTMENT_REASONS.map((reason) => (
+                  <option key={reason.value} value={reason.value}>
+                    {reason.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {adjustmentReason === "Other" && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Specify Reason *
+                </label>
+                <input
+                  type="text"
+                  value={adjustmentNotes}
+                  onChange={(e) => setAdjustmentNotes(e.target.value)}
+                  placeholder="Enter specific reason..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
+                />
+              </div>
+            )}
+
+            {adjustmentReason && adjustmentReason !== "Other" && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">
+                  Additional Notes (Optional)
+                </label>
+                <textarea
+                  value={adjustmentNotes}
+                  onChange={(e) => setAdjustmentNotes(e.target.value)}
+                  placeholder="Add any additional notes..."
+                  rows={2}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white resize-none"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAdjustmentModal(false);
+                  setAdjustmentReason("");
+                  setAdjustmentNotes("");
+                }}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAdjustment}
+                disabled={!adjustmentReason.trim() || (adjustmentReason === "Other" && !adjustmentNotes.trim())}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirm Adjustment
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

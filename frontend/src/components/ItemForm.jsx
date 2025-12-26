@@ -6,6 +6,14 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { API_URL } from "../config/api";
+import {
+  validateRequired,
+  validatePrice,
+  validateSKU,
+  validateForm,
+  hasErrors,
+} from "../utils/validation";
+import { FormErrorSummary, RequiredIndicator } from "./ErrorMessage";
 
 const ITEM_TYPES = [
   { value: "finished_good", label: "Finished Good" },
@@ -20,6 +28,11 @@ const PROCUREMENT_TYPES = [
   { value: "make_or_buy", label: "Make or Buy" },
 ];
 
+const STOCKING_POLICIES = [
+  { value: "on_demand", label: "On-Demand (MRP-driven)" },
+  { value: "stocked", label: "Stocked (Reorder Point)" },
+];
+
 export default function ItemForm({
   isOpen,
   onClose,
@@ -29,6 +42,7 @@ export default function ItemForm({
   const token = localStorage.getItem("adminToken");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
   const [categories, setCategories] = useState([]);
   const [uomClasses, setUomClasses] = useState([]);
 
@@ -38,10 +52,12 @@ export default function ItemForm({
     description: editingItem?.description || "",
     item_type: editingItem?.item_type || "finished_good",
     procurement_type: editingItem?.procurement_type || "make",
+    stocking_policy: editingItem?.stocking_policy || "on_demand",
     category_id: editingItem?.category_id || null,
     unit: editingItem?.unit || "EA",
     standard_cost: editingItem?.standard_cost || "",
     selling_price: editingItem?.selling_price || "",
+    reorder_point: editingItem?.reorder_point || "",
   });
 
   const fetchCategories = useCallback(async () => {
@@ -96,10 +112,12 @@ export default function ItemForm({
           description: editingItem.description || "",
           item_type: editingItem.item_type || "finished_good",
           procurement_type: editingItem.procurement_type || "make",
+          stocking_policy: editingItem.stocking_policy || "on_demand",
           category_id: editingItem.category_id || null,
           unit: editingItem.unit || "EA",
           standard_cost: editingItem.standard_cost || "",
           selling_price: editingItem.selling_price || "",
+          reorder_point: editingItem.reorder_point || "",
         });
       } else {
         // Reset form for new item
@@ -109,20 +127,61 @@ export default function ItemForm({
           description: "",
           item_type: "finished_good",
           procurement_type: "make",
+          stocking_policy: "on_demand",
           category_id: null,
           unit: "EA",
           standard_cost: "",
           selling_price: "",
+          reorder_point: "",
         });
       }
       setError(null);
+      setErrors({});
     }
   }, [isOpen, editingItem, fetchCategories, fetchUomClasses]);
 
+  const validateFormData = () => {
+    const validationRules = {
+      name: [(v) => validateRequired(v, "Item name")],
+      unit: [(v) => validateRequired(v, "Unit of measure")],
+      item_type: [(v) => validateRequired(v, "Item type")],
+      procurement_type: [(v) => validateRequired(v, "Procurement type")],
+    };
+
+    // Only validate SKU if it's provided (it's optional - can be auto-generated)
+    if (formData.sku && formData.sku.trim()) {
+      validationRules.sku = [(v) => validateSKU(v)];
+    }
+
+    // Validate numeric fields if they have values
+    if (formData.standard_cost !== "" && formData.standard_cost !== null) {
+      validationRules.standard_cost = [
+        (v) => validatePrice(v, "Standard cost"),
+      ];
+    }
+
+    if (formData.selling_price !== "" && formData.selling_price !== null) {
+      validationRules.selling_price = [
+        (v) => validatePrice(v, "Selling price"),
+      ];
+    }
+
+    return validateForm(formData, validationRules);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setErrors({});
+
+    // Validate form
+    const validationErrors = validateFormData();
+    if (hasErrors(validationErrors)) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const payload = {
@@ -131,12 +190,16 @@ export default function ItemForm({
         description: formData.description || null,
         item_type: formData.item_type,
         procurement_type: formData.procurement_type,
+        stocking_policy: formData.stocking_policy,
         unit: formData.unit,
         standard_cost: formData.standard_cost
           ? parseFloat(formData.standard_cost)
           : null,
         selling_price: formData.selling_price
           ? parseFloat(formData.selling_price)
+          : null,
+        reorder_point: formData.stocking_policy === "stocked" && formData.reorder_point
+          ? parseFloat(formData.reorder_point)
           : null,
         category_id: formData.category_id || null,
       };
@@ -195,6 +258,8 @@ export default function ItemForm({
             </div>
           )}
 
+          <FormErrorSummary errors={errors} className="mb-4" />
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
@@ -214,22 +279,32 @@ export default function ItemForm({
                       sku: e.target.value.toUpperCase(),
                     })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none ${
+                    errors.sku
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                   placeholder="Leave empty for auto-generation"
                 />
+                {errors.sku && (
+                  <div className="text-red-400 text-sm mt-1">{errors.sku}</div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Unit <span className="text-red-400">*</span>
+                  Unit <RequiredIndicator />
                 </label>
                 <select
-                  required
                   value={formData.unit}
                   onChange={(e) =>
                     setFormData({ ...formData, unit: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white focus:outline-none ${
+                    errors.unit
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                 >
                   {uomClasses.length > 0 ? (
                     uomClasses.map((cls) => (
@@ -260,23 +335,32 @@ export default function ItemForm({
                     </>
                   )}
                 </select>
+                {errors.unit && (
+                  <div className="text-red-400 text-sm mt-1">{errors.unit}</div>
+                )}
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
-                Name <span className="text-red-400">*</span>
+                Name <RequiredIndicator />
               </label>
               <input
                 type="text"
-                required
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none ${
+                  errors.name
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-gray-700 focus:border-blue-500"
+                }`}
                 placeholder="Item name"
               />
+              {errors.name && (
+                <div className="text-red-400 text-sm mt-1">{errors.name}</div>
+              )}
             </div>
 
             <div>
@@ -298,15 +382,18 @@ export default function ItemForm({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Item Type <span className="text-red-400">*</span>
+                  Item Type <RequiredIndicator />
                 </label>
                 <select
-                  required
                   value={formData.item_type}
                   onChange={(e) =>
                     setFormData({ ...formData, item_type: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white focus:outline-none ${
+                    errors.item_type
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                 >
                   {ITEM_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
@@ -314,14 +401,18 @@ export default function ItemForm({
                     </option>
                   ))}
                 </select>
+                {errors.item_type && (
+                  <div className="text-red-400 text-sm mt-1">
+                    {errors.item_type}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Procurement Type <span className="text-red-400">*</span>
+                  Procurement Type <RequiredIndicator />
                 </label>
                 <select
-                  required
                   value={formData.procurement_type}
                   onChange={(e) =>
                     setFormData({
@@ -329,7 +420,11 @@ export default function ItemForm({
                       procurement_type: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white focus:outline-none ${
+                    errors.procurement_type
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                 >
                   {PROCUREMENT_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
@@ -337,7 +432,61 @@ export default function ItemForm({
                     </option>
                   ))}
                 </select>
+                {errors.procurement_type && (
+                  <div className="text-red-400 text-sm mt-1">
+                    {errors.procurement_type}
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Stocking Policy */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Stocking Policy
+                </label>
+                <select
+                  value={formData.stocking_policy}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      stocking_policy: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:outline-none"
+                >
+                  {STOCKING_POLICIES.map((policy) => (
+                    <option key={policy.value} value={policy.value}>
+                      {policy.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.stocking_policy === "stocked"
+                    ? "Item will show as low stock when below reorder point"
+                    : "Item is only ordered when MRP shows demand"}
+                </p>
+              </div>
+
+              {formData.stocking_policy === "stocked" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Reorder Point
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={formData.reorder_point}
+                    onChange={(e) =>
+                      setFormData({ ...formData, reorder_point: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                    placeholder="Min quantity to keep on hand"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -378,9 +527,18 @@ export default function ItemForm({
                   onChange={(e) =>
                     setFormData({ ...formData, standard_cost: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none ${
+                    errors.standard_cost
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                   placeholder="0.00"
                 />
+                {errors.standard_cost && (
+                  <div className="text-red-400 text-sm mt-1">
+                    {errors.standard_cost}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -394,9 +552,18 @@ export default function ItemForm({
                   onChange={(e) =>
                     setFormData({ ...formData, selling_price: e.target.value })
                   }
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  className={`w-full px-4 py-2 bg-gray-800 border rounded-lg text-white placeholder-gray-500 focus:outline-none ${
+                    errors.selling_price
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-gray-700 focus:border-blue-500"
+                  }`}
                   placeholder="0.00"
                 />
+                {errors.selling_price && (
+                  <div className="text-red-400 text-sm mt-1">
+                    {errors.selling_price}
+                  </div>
+                )}
               </div>
             </div>
 

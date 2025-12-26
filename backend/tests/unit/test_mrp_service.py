@@ -38,7 +38,7 @@ def create_all_tables():
     """Create all tables needed for MRP testing
     
     Note: We create tables manually to handle SQLite limitations:
-    - SQLite doesn't support computed columns like SQL Server
+    - SQLite doesn't support computed columns
     - We create a simplified inventory table without the computed column
     """
     from sqlalchemy import Table, Column, Integer, String, Numeric, DateTime, Date, Text, Boolean, ForeignKey, MetaData
@@ -75,6 +75,7 @@ def create_all_tables():
         Column('reorder_point', Numeric(10, 2), nullable=True),
         Column('safety_stock', Numeric(18, 4), default=0),
         Column('preferred_vendor_id', Integer, nullable=True),
+        Column('stocking_policy', String(20), default='on_demand'),
         Column('upc', String(50), nullable=True),
         Column('type', String(20), default='standard'),
         Column('gcode_file_path', String(500), nullable=True),
@@ -160,6 +161,11 @@ def create_all_tables():
         Column('quantity_completed', Numeric(18, 4), default=0),
         Column('quantity_scrapped', Numeric(18, 4), default=0),
         Column('status', String(50), default='draft'),
+        # QC Status fields (Sprint 3-4)
+        Column('qc_status', String(50), default='not_required'),
+        Column('qc_notes', Text, nullable=True),
+        Column('qc_inspected_by', String(100), nullable=True),
+        Column('qc_inspected_at', DateTime, nullable=True),
         Column('priority', Integer, default=5),
         Column('source', String(50), nullable=True),
         Column('due_date', Date, nullable=True),
@@ -683,7 +689,7 @@ def inventory_with_stock(db, inventory_location, raw_material_pla, raw_material_
     """Create inventory records with some stock
     
     Note: We use raw SQL INSERT to avoid issues with the computed column
-    (available_quantity) that SQL Server uses but SQLite doesn't support.
+    (available_quantity) computed column that SQLite doesn't support.
     """
     from sqlalchemy import text
     
@@ -1172,6 +1178,7 @@ class TestFullMRPRun:
             quantity_completed=Decimal("0"),
             status="released",
             due_date=date.today() + timedelta(days=14),
+            qc_status="not_required",  # Explicitly set to avoid SQLite schema issues
         )
         db.add(prod_order)
         db.commit()

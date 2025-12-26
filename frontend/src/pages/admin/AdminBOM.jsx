@@ -202,7 +202,7 @@ function PurchaseRequestModal({ line, onClose, token, onSuccess }) {
           const data = await res.json();
           setVendors(data);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to load vendors. Please refresh the page.");
       } finally {
         setLoadingVendors(false);
@@ -698,7 +698,6 @@ function BOMDetailView({
   const [showExploded, setShowExploded] = useState(false);
   const [explodedData, setExplodedData] = useState(null);
   const [costRollup, setCostRollup] = useState(null);
-  const [expandedSubs, setExpandedSubs] = useState(new Set());
 
   // Process Path / Routing state
   const [routingTemplates, setRoutingTemplates] = useState([]);
@@ -706,7 +705,7 @@ function BOMDetailView({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [timeOverrides, setTimeOverrides] = useState({});
   const [applyingTemplate, setApplyingTemplate] = useState(false);
-  const [showProcessPath, setShowProcessPath] = useState(true);
+  const [showProcessPath] = useState(true);
   const [workCenters, setWorkCenters] = useState([]);
   const [showAddOperation, setShowAddOperation] = useState(false);
   const [pendingOperations, setPendingOperations] = useState([]);
@@ -758,7 +757,7 @@ function BOMDetailView({
           }
         }
       }
-    } catch (err) {
+    } catch {
       // Product routing fetch failure is non-critical - routing section will just be empty
     }
   }, [token, bom.product_id]);
@@ -779,7 +778,7 @@ function BOMDetailView({
           const data = await res.json();
           setCostRollup(data);
         }
-      } catch (err) {
+      } catch {
         // Cost rollup fetch failure is non-critical - cost display will just be empty
       }
     };
@@ -796,7 +795,7 @@ function BOMDetailView({
           const data = await res.json();
           setRoutingTemplates(data.items || data);
         }
-      } catch (err) {
+      } catch {
         // Routing templates fetch failure is non-critical - templates list will just be empty
       }
     };
@@ -813,7 +812,7 @@ function BOMDetailView({
           const data = await res.json();
           setProducts(data.items || data);
         }
-      } catch (err) {
+      } catch {
         toast.error("Failed to load products. Please refresh the page.");
       }
     };
@@ -827,7 +826,7 @@ function BOMDetailView({
           const data = await res.json();
           setUoms(data);
         }
-      } catch (err) {
+      } catch {
         // UOM fetch failure is non-critical
       }
     };
@@ -844,7 +843,7 @@ function BOMDetailView({
           const data = await res.json();
           setWorkCenters(data);
         }
-      } catch (err) {
+      } catch {
         // Work centers fetch failure is non-critical
       }
     };
@@ -865,7 +864,7 @@ function BOMDetailView({
       // Convert timeOverrides to the format expected by the API
       const overrides = Object.entries(timeOverrides)
         .filter(
-          ([_, val]) =>
+          ([, val]) =>
             val.run_time_minutes !== undefined ||
             val.setup_time_minutes !== undefined
         )
@@ -963,6 +962,40 @@ function BOMDetailView({
     }
   };
 
+  // Delete operation from routing
+  const handleDeleteOperation = async (operationId, operationName) => {
+    if (!window.confirm(`Are you sure you want to remove operation "${operationName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/v1/routings/operations/${operationId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Operation removed successfully");
+        // Refresh the routing to get updated operation list and costs
+        await fetchProductRouting();
+      } else {
+        const errData = await res.json();
+        toast.error(
+          `Failed to remove operation: ${errData.detail || "Unknown error"}`
+        );
+      }
+    } catch (err) {
+      toast.error(
+        `Failed to remove operation: ${err.message || "Network error"}`
+      );
+    }
+  };
+
   // Calculate total process cost from routing
   const calculateProcessCost = () => {
     if (!productRouting) return 0;
@@ -1000,15 +1033,7 @@ function BOMDetailView({
     }
   };
 
-  const toggleSubAssembly = (componentId) => {
-    const newExpanded = new Set(expandedSubs);
-    if (newExpanded.has(componentId)) {
-      newExpanded.delete(componentId);
-    } else {
-      newExpanded.add(componentId);
-    }
-    setExpandedSubs(newExpanded);
-  };
+  // toggleSubAssembly removed - not currently used
 
   const handleAddPendingOperation = () => {
     if (!newOperation.work_center_id) return;
@@ -1194,35 +1219,7 @@ function BOMDetailView({
     }
   };
 
-  const handleRecalculate = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `${API_URL}/api/v1/admin/bom/${bom.id}/recalculate`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (res.ok) {
-        onUpdate();
-      } else {
-        const errorData = await res.json();
-        toast.error(
-          `Failed to recalculate BOM cost: ${
-            errorData.detail || "Unknown error"
-          }`
-        );
-      }
-    } catch (err) {
-      toast.error(
-        `Failed to recalculate BOM cost: ${err.message || "Network error"}`
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  // handleRecalculate removed - not currently used
 
   return (
     <div className="space-y-6">
@@ -1458,7 +1455,19 @@ function BOMDetailView({
                 </td>
                 <td className="py-2 px-3 text-gray-400">
                   ${parseFloat(line.component_cost || 0).toFixed(2)}/
-                  {line.unit || line.component_unit || "EA"}
+                  {(() => {
+                    // For materials, always show /KG regardless of line unit
+                    // Materials have unit="G" (we changed all materials to G)
+                    // and cost is stored per-KG (typically > $1)
+                    const isMaterial = line.is_material || 
+                                     line.component_cost_unit === "KG" ||
+                                     (line.component_unit === "G" && line.component_cost && parseFloat(line.component_cost) > 0.01);
+                    
+                    if (isMaterial) {
+                      return "KG";
+                    }
+                    return line.unit || line.component_unit || "EA";
+                  })()}
                 </td>
                 <td className="py-2 px-3 text-green-400 font-medium">
                   ${parseFloat(line.line_cost || 0).toFixed(2)}
@@ -1747,6 +1756,9 @@ function BOMDetailView({
                       <th className="text-left py-2 px-3 text-gray-400">
                         Cost
                       </th>
+                      <th className="text-center py-2 px-3 text-gray-400">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1755,8 +1767,41 @@ function BOMDetailView({
                         key={op.id || idx}
                         className="border-b border-gray-800"
                       >
-                        <td className="py-2 px-3 text-gray-500">
-                          {op.sequence}
+                        <td className="py-2 px-3">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={op.sequence}
+                            onChange={async (e) => {
+                              const newSequence = parseInt(e.target.value) || 1;
+                              // Update sequence via API
+                              try {
+                                const res = await fetch(
+                                  `${API_URL}/api/v1/routings/operations/${op.id}`,
+                                  {
+                                    method: "PUT",
+                                    headers: {
+                                      Authorization: `Bearer ${token}`,
+                                      "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                      sequence: newSequence,
+                                    }),
+                                  }
+                                );
+                                if (res.ok) {
+                                  // Refresh routing to get updated sequence
+                                  await fetchProductRouting();
+                                } else {
+                                  toast.error("Failed to update sequence");
+                                }
+                              } catch (err) {
+                                toast.error(`Error: ${err.message}`);
+                              }
+                            }}
+                            className="w-16 text-center bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white"
+                          />
                         </td>
                         <td className="py-2 px-3">
                           <div className="text-white font-medium">
@@ -1831,6 +1876,15 @@ function BOMDetailView({
                         </td>
                         <td className="py-2 px-3 text-green-400">
                           ${parseFloat(op.calculated_cost || 0).toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            onClick={() => handleDeleteOperation(op.id, op.operation_name || op.operation_code)}
+                            className="text-red-400 hover:text-red-300 text-sm px-2 py-1 rounded hover:bg-red-400/10 transition-colors"
+                            title="Remove operation"
+                          >
+                            Remove
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2255,7 +2309,7 @@ function BOMDetailView({
 }
 
 // Create BOM Form
-function CreateBOMForm({ onClose, onCreate, token }) {
+function CreateBOMForm({ onClose, onCreate, token, existingBoms = [] }) {
   const [formData, setFormData] = useState({
     product_id: "",
     name: "",
@@ -2264,6 +2318,8 @@ function CreateBOMForm({ onClose, onCreate, token }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [existingBomWarning, setExistingBomWarning] = useState(null);
+  const [forceNewVersion, setForceNewVersion] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -2277,7 +2333,7 @@ function CreateBOMForm({ onClose, onCreate, token }) {
         const data = await res.json();
         setProducts(data.items || data);
       }
-    } catch (err) {
+    } catch {
       setError("Failed to load products. Please refresh the page.");
     }
   }, [token]);
@@ -2331,11 +2387,22 @@ function CreateBOMForm({ onClose, onCreate, token }) {
       return;
     }
 
+    // If product has existing BOM and user didn't check "force new version", block
+    if (existingBomWarning && !forceNewVersion) {
+      setError("Please select 'Create a new version' or click 'View' on the existing BOM instead.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/admin/bom`, {
+      // Add force_new parameter if creating a new version
+      const url = forceNewVersion
+        ? `${API_URL}/api/v1/admin/bom?force_new=true`
+        : `${API_URL}/api/v1/admin/bom`;
+
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2387,7 +2454,20 @@ function CreateBOMForm({ onClose, onCreate, token }) {
         <SearchableSelect
           options={products}
           value={formData.product_id}
-          onChange={(val) => setFormData({ ...formData, product_id: val })}
+          onChange={(val) => {
+            setFormData({ ...formData, product_id: val });
+            // Check if product already has a BOM
+            const existingBom = existingBoms.find(
+              (b) => b.product_id === parseInt(val) && b.active
+            );
+            if (existingBom) {
+              setExistingBomWarning(existingBom);
+              setForceNewVersion(false);
+            } else {
+              setExistingBomWarning(null);
+              setForceNewVersion(false);
+            }
+          }}
           placeholder="Select a product..."
           displayKey="name"
           valueKey="id"
@@ -2406,6 +2486,36 @@ function CreateBOMForm({ onClose, onCreate, token }) {
           , then return here.
         </p>
       </div>
+
+      {/* Existing BOM Warning */}
+      {existingBomWarning && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-yellow-200">
+          <div className="font-semibold mb-2">
+            This product already has an active BOM
+          </div>
+          <p className="text-sm text-yellow-300 mb-3">
+            BOM: {existingBomWarning.code || existingBomWarning.name} (v{existingBomWarning.version})
+            with {existingBomWarning.line_count} component(s)
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="forceNewVersion"
+              checked={forceNewVersion}
+              onChange={(e) => setForceNewVersion(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-yellow-600 focus:ring-yellow-500"
+            />
+            <label htmlFor="forceNewVersion" className="text-sm">
+              Create a new version (deactivates current BOM)
+            </label>
+          </div>
+          {!forceNewVersion && (
+            <p className="text-xs text-gray-400 mt-2">
+              Tip: To add components to the existing BOM, click "View" on the BOM in the list instead.
+            </p>
+          )}
+        </div>
+      )}
 
       <div>
         <label className="block text-sm text-gray-400 mb-1">
@@ -2435,10 +2545,10 @@ function CreateBOMForm({ onClose, onCreate, token }) {
       <div className="flex gap-2 pt-4">
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (existingBomWarning && !forceNewVersion)}
           className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? "Creating..." : "Create BOM"}
+          {loading ? "Creating..." : forceNewVersion ? "Create New Version" : "Create BOM"}
         </button>
         <button
           type="button"
@@ -2870,6 +2980,10 @@ export default function AdminBOM() {
         if (!res.ok) throw new Error("Failed to fetch BOM details");
 
         const data = await res.json();
+        // Debug: Log line data to check for material flags
+        if (data.lines && data.lines.length > 0) {
+          console.log("BOM Line data sample:", data.lines[0]);
+        }
         setSelectedBOM(data);
       } catch (err) {
         setError(`Failed to load BOM: ${err.message || "Unknown error"}`);
@@ -3184,6 +3298,7 @@ export default function AdminBOM() {
             handleViewBOM(newBom.id);
           }}
           token={token}
+          existingBoms={boms}
         />
       </Modal>
     </div>

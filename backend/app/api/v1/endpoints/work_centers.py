@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db.session import get_db
 from app.logging_config import get_logger
-from app.models.manufacturing import WorkCenter, Resource
+from app.models.manufacturing import Resource
+from app.models.work_center import WorkCenter
 from app.models.printer import Printer
 from app.api.v1.deps import get_current_user
 from app.models.user import User
@@ -52,7 +53,7 @@ async def list_work_centers(
         query = query.filter(WorkCenter.center_type == center_type)
 
     if active_only:
-        query = query.filter(WorkCenter.is_active == True)  # noqa: E712
+        query = query.filter(WorkCenter.is_active.is_(True))  # noqa: E712
 
     work_centers = query.order_by(WorkCenter.scheduling_priority.desc(), WorkCenter.name).all()
 
@@ -205,7 +206,7 @@ async def list_resources(
     query = db.query(Resource).filter(Resource.work_center_id == wc_id)
 
     if active_only:
-        query = query.filter(Resource.is_active == True)  # noqa: E712
+        query = query.filter(Resource.is_active.is_(True))  # noqa: E712
 
     resources = query.order_by(Resource.code).all()
 
@@ -367,7 +368,7 @@ async def list_work_center_printers(
     query = db.query(Printer).filter(Printer.work_center_id == wc_id)
 
     if active_only:
-        query = query.filter(Printer.active == True)  # noqa: E712  # noqa: E712 - SQL Server requires == True
+        query = query.filter(Printer.active.is_(True))
 
     printers = query.order_by(Printer.code).all()
 

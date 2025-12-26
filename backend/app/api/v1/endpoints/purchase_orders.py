@@ -2,8 +2,8 @@
 Purchase Orders API Endpoints
 """
 import os
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from typing import Annotated, Optional
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload
@@ -12,11 +12,15 @@ from sqlalchemy import desc
 from app.db.session import get_db
 from app.logging_config import get_logger
 from app.services.google_drive import get_drive_service
+from app.services.uom_service import convert_quantity_safe, get_conversion_factor
+from app.services.inventory_helpers import is_material
 from app.models.vendor import Vendor
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderLine
 from app.models.product import Product
 from app.models.inventory import Inventory, InventoryTransaction
+from app.models.material_spool import MaterialSpool
 from app.api.v1.endpoints.auth import get_current_user
+from app.api.v1.deps import get_pagination_params
 from app.models.user import User
 from app.schemas.purchasing import (
     PurchaseOrderCreate,
@@ -30,6 +34,14 @@ from app.schemas.purchasing import (
     ReceivePORequest,
     ReceivePOResponse,
 )
+from app.schemas.common import PaginationParams, ListResponse, PaginationMeta
+from app.schemas.purchasing_event import (
+    PurchasingEventCreate,
+    PurchasingEventResponse,
+    PurchasingEventListResponse,
+)
+from app.models.purchasing_event import PurchasingEvent
+from app.services.event_service import record_purchasing_event
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -63,21 +75,22 @@ def _calculate_totals(po: PurchaseOrder) -> None:
 # Purchase Order CRUD
 # ============================================================================
 
-@router.get("/", response_model=List[PurchaseOrderListResponse])
+@router.get("/", response_model=ListResponse[PurchaseOrderListResponse])
 async def list_purchase_orders(
-    status: Optional[str] = None,
-    vendor_id: Optional[int] = None,
-    search: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
+    status: Optional[str] = Query(None, description="Filter by status (draft, ordered, shipped, received, closed, cancelled)"),
+    vendor_id: Optional[int] = Query(None, description="Filter by vendor ID"),
+    search: Optional[str] = Query(None, description="Search by PO number"),
     db: Session = Depends(get_db),
 ):
     """
-    List purchase orders
+    List purchase orders with pagination
 
     - **status**: Filter by status (draft, ordered, shipped, received, closed, cancelled)
     - **vendor_id**: Filter by vendor
     - **search**: Search by PO number
+    - **offset**: Number of records to skip (default: 0)
+    - **limit**: Maximum records to return (default: 50, max: 500)
     """
     query = db.query(PurchaseOrder).options(joinedload(PurchaseOrder.vendor))
 
@@ -90,7 +103,11 @@ async def list_purchase_orders(
     if search:
         query = query.filter(PurchaseOrder.po_number.ilike(f"%{search}%"))
 
-    pos = query.order_by(desc(PurchaseOrder.created_at)).offset(skip).limit(limit).all()
+    # Get total count before pagination
+    total = query.count()
+
+    # Apply pagination
+    pos = query.order_by(desc(PurchaseOrder.created_at)).offset(pagination.offset).limit(pagination.limit).all()
 
     result = []
     for po in pos:
@@ -102,12 +119,21 @@ async def list_purchase_orders(
             status=po.status,
             order_date=po.order_date,
             expected_date=po.expected_date,
+            received_date=po.received_date,  # User-entered date from receive workflow
             total_amount=po.total_amount,
             line_count=len(po.lines),
             created_at=po.created_at,
         ))
 
-    return result
+    return ListResponse(
+        items=result,
+        pagination=PaginationMeta(
+            total=total,
+            offset=pagination.offset,
+            limit=pagination.limit,
+            returned=len(result)
+        )
+    )
 
 
 @router.get("/{po_id}", response_model=PurchaseOrderResponse)
@@ -133,9 +159,11 @@ async def get_purchase_order(
             product_id=line.product_id,
             product_sku=line.product.sku if line.product else None,
             product_name=line.product.name if line.product else None,
+            product_unit=line.product.unit if line.product else None,
             quantity_ordered=line.quantity_ordered,
             quantity_received=line.quantity_received,
             unit_cost=line.unit_cost,
+            purchase_unit=line.purchase_unit,
             line_total=line.line_total,
             notes=line.notes,
             created_at=line.created_at,
@@ -219,6 +247,7 @@ async def create_purchase_order(
             product_id=line_data.product_id,
             quantity_ordered=line_data.quantity_ordered,
             quantity_received=Decimal("0"),
+            purchase_unit=line_data.purchase_unit or product.unit,
             unit_cost=line_data.unit_cost,
             line_total=line_data.quantity_ordered * line_data.unit_cost,
             notes=line_data.notes,
@@ -230,6 +259,17 @@ async def create_purchase_order(
 
     # Calculate totals
     _calculate_totals(po)
+
+    # Record creation event
+    record_purchasing_event(
+        db=db,
+        purchase_order_id=po.id,
+        event_type="created",
+        title="Purchase Order Created",
+        description=f"Created for vendor {vendor.name}",
+        new_value="draft",
+        user_id=current_user.id,
+    )
 
     db.commit()
     db.refresh(po)
@@ -308,6 +348,7 @@ async def add_po_line(
         product_id=request.product_id,
         quantity_ordered=request.quantity_ordered,
         quantity_received=Decimal("0"),
+        purchase_unit=request.purchase_unit or product.unit,
         unit_cost=request.unit_cost,
         line_total=request.quantity_ordered * request.unit_cost,
         notes=request.notes,
@@ -486,6 +527,32 @@ async def update_po_status(
 
     po.status = new_status
     po.updated_at = datetime.utcnow()
+
+    # Record status change event
+    status_titles = {
+        "ordered": "Order Placed",
+        "shipped": "Marked as Shipped",
+        "received": "Marked as Received",
+        "closed": "Order Closed",
+        "cancelled": "Order Cancelled",
+    }
+    description = None
+    if new_status == "shipped" and request.tracking_number:
+        description = f"Tracking: {request.tracking_number}"
+        if request.carrier:
+            description += f" ({request.carrier})"
+
+    record_purchasing_event(
+        db=db,
+        purchase_order_id=po.id,
+        event_type="status_change",
+        title=status_titles.get(new_status, f"Status changed to {new_status}"),
+        description=description,
+        old_value=old_status,
+        new_value=new_status,
+        user_id=current_user.id,
+    )
+
     db.commit()
     db.refresh(po)
 
@@ -525,6 +592,10 @@ async def receive_purchase_order(
             detail=f"Cannot receive items on PO in '{po.status}' status"
         )
 
+    # User-entered received date (defaults to today if not provided)
+    # This is the date items were ACTUALLY received, not when entered in system
+    actual_received_date = request.received_date or date.today()
+
     # Default location (get first warehouse or create default)
     location_id = request.location_id
     if not location_id:
@@ -550,6 +621,7 @@ async def receive_purchase_order(
     line_map = {line.id: line for line in po.lines}
 
     transaction_ids = []
+    spools_created = []  # Initialize spools list
     total_received = Decimal("0")
     lines_received = 0
 
@@ -572,20 +644,178 @@ async def receive_purchase_order(
         total_received += item.quantity_received
         lines_received += 1
 
-        # Update inventory
+        # Convert quantity from purchase_unit to product's default unit
+        product = db.query(Product).filter(Product.id == line.product_id).first()
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {line.product_id} not found")
+        
+        purchase_unit = (line.purchase_unit or product.unit or 'EA').upper().strip()
+        product_unit = (product.unit or 'EA').upper().strip()
+        
+        # Check if this is a material (for cost handling)
+        is_mat = is_material(product)
+        
+        # Convert quantity if units differ
+        quantity_received_decimal = Decimal(str(item.quantity_received))
+        quantity_for_inventory = quantity_received_decimal
+        cost_per_unit_for_inventory = line.unit_cost
+        
+        if purchase_unit != product_unit:
+            # Convert quantity: purchase_unit -> product_unit
+            # Use safe conversion which falls back to inline conversions if DB lookup fails
+            logger.info(
+                f"Converting quantity for PO {po.po_number} line {line.line_number}: "
+                f"{quantity_received_decimal} {purchase_unit} -> {product_unit}"
+            )
+            
+            converted_qty, conversion_success = convert_quantity_safe(
+                db, quantity_received_decimal, purchase_unit, product_unit
+            )
+            
+            if not conversion_success:
+                # Conversion failed - this is a critical error
+                logger.error(
+                    f"UOM conversion FAILED for PO {po.po_number} line {line.line_number}. "
+                    f"Purchase unit: '{purchase_unit}', Product unit: '{product_unit}', "
+                    f"Quantity received: {quantity_received_decimal}. "
+                    f"Cannot convert incompatible units - this will cause incorrect inventory!"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Cannot convert {quantity_received_decimal} {purchase_unit} to {product_unit} "
+                        f"for product {product.sku}. "
+                        f"Units are incompatible. Supported conversions: G↔KG, LB↔KG, OZ↔KG, etc."
+                    )
+                )
+            
+            quantity_for_inventory = converted_qty
+            logger.info(
+                f"Conversion successful: {quantity_received_decimal} {purchase_unit} = {quantity_for_inventory} {product_unit}"
+            )
+            
+            # Convert cost_per_unit: cost per purchase_unit -> cost per product_unit
+            # For materials: Convert to $/G since quantity is stored in grams
+            # This ensures COGS calculations work correctly: cost_per_unit ($/G) * quantity (G)
+            if is_mat:
+                # Materials: Convert cost from $/purchase_unit to $/G
+                if purchase_unit == "KG":
+                    # Purchased in KG, storing in G: divide cost by 1000
+                    cost_per_unit_for_inventory = line.unit_cost / Decimal("1000")
+                    logger.info(
+                        f"Material cost conversion: ${line.unit_cost}/KG → "
+                        f"${cost_per_unit_for_inventory}/G"
+                    )
+                else:
+                    # Purchased in other units (G, LB, OZ, etc.) - use conversion factor
+                    try:
+                        quantity_conversion_factor = get_conversion_factor(db, purchase_unit, "G")
+                        cost_conversion_factor = Decimal("1") / quantity_conversion_factor
+                        cost_per_unit_for_inventory = line.unit_cost * cost_conversion_factor
+                        logger.info(
+                            f"Material cost conversion: ${line.unit_cost}/{purchase_unit} → "
+                            f"${cost_per_unit_for_inventory}/G (factor: {cost_conversion_factor})"
+                        )
+                    except Exception as e:
+                        logger.error(f"Cost conversion failed for material: {e}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot convert cost from {purchase_unit} to G"
+                        )
+            else:
+                # Non-materials: Convert cost per purchase_unit -> cost per product_unit
+                # Cost conversion factor is the inverse of quantity conversion factor
+                # Example: $20/LB -> $44.09/KG when converting 1LB -> 0.453592KG
+                try:
+                    quantity_conversion_factor = get_conversion_factor(db, purchase_unit, product_unit)
+                    logger.info(
+                        f"Cost conversion: quantity_factor={quantity_conversion_factor} "
+                        f"(from {purchase_unit} to {product_unit})"
+                    )
+                    cost_conversion_factor = Decimal("1") / quantity_conversion_factor
+                    cost_per_unit_for_inventory = line.unit_cost * cost_conversion_factor
+                    logger.info(
+                        f"Cost conversion: cost_factor={cost_conversion_factor}, "
+                        f"unit_cost={line.unit_cost}, result={cost_per_unit_for_inventory}"
+                    )
+                except Exception as e:
+                    # If cost conversion fails, use derived factor from quantity conversion
+                    qty_received = Decimal(str(item.quantity_received))
+                    if qty_received > 0 and quantity_for_inventory > 0:
+                        quantity_conversion_factor_derived = quantity_for_inventory / qty_received
+                        cost_conversion_factor = Decimal("1") / quantity_conversion_factor_derived
+                        cost_per_unit_for_inventory = line.unit_cost * cost_conversion_factor
+                        logger.info(
+                            f"Cost conversion (fallback): qty_factor={quantity_conversion_factor_derived}, "
+                            f"cost_factor={cost_conversion_factor}, unit_cost={line.unit_cost}, "
+                            f"result={cost_per_unit_for_inventory}"
+                        )
+                    else:
+                        cost_per_unit_for_inventory = line.unit_cost
+                        logger.warning(
+                            f"Cost conversion: Cannot derive factor (qty_received={qty_received}, "
+                            f"quantity_for_inventory={quantity_for_inventory}), using original cost"
+                        )
+                    logger.warning(
+                        f"Cost conversion factor lookup failed, using derived factor: {e}"
+                    )
+            
+            logger.info(
+                f"UOM conversion for PO {po.po_number} line {line.line_number}: "
+                f"{item.quantity_received} {purchase_unit} @ ${line.unit_cost}/{purchase_unit} -> "
+                f"{quantity_for_inventory} {product_unit} @ ${cost_per_unit_for_inventory}/"
+                f"{'KG' if is_mat else product_unit} (material: {is_mat})"
+            )
+
+        # ============================================================================
+        # STAR SCHEMA: Convert to transaction unit (GRAMS for materials, native for others)
+        # ============================================================================
+        # For materials: Convert to GRAMS before transaction (single source of truth)
+        # For others: Use product_unit as-is
+        transaction_quantity = quantity_for_inventory
+        if is_material(product):
+            # Material: Convert to grams for transaction storage
+            # quantity_for_inventory is in product_unit (typically KG), but could be G if purchased in G
+            # Check if we need to convert to grams
+            if product_unit == "KG":
+                transaction_quantity = quantity_for_inventory * Decimal("1000")
+            elif product_unit == "G":
+                # Already in grams - use as-is
+                transaction_quantity = quantity_for_inventory
+            elif product_unit == "LB":
+                transaction_quantity = quantity_for_inventory * Decimal("453.592")
+            elif product_unit == "OZ":
+                transaction_quantity = quantity_for_inventory * Decimal("28.3495")
+            else:
+                # Unknown unit - assume grams for materials
+                logger.warning(
+                    f"Material {product.sku} has unknown unit '{product_unit}', assuming grams"
+                )
+                transaction_quantity = quantity_for_inventory
+            
+            logger.info(
+                f"Material conversion for transaction: {quantity_for_inventory} {product_unit} -> "
+                f"{transaction_quantity} G (product: {product.sku}, purchased in: {purchase_unit})"
+            )
+        # For non-materials, transaction_quantity = quantity_for_inventory (already in product_unit)
+        
+        # Update inventory (store in transaction unit: GRAMS for materials)
         inventory = db.query(Inventory).filter(
             Inventory.product_id == line.product_id,
             Inventory.location_id == location_id
         ).first()
 
         if inventory:
-            inventory.on_hand_quantity = inventory.on_hand_quantity + item.quantity_received
+            # Convert both to Decimal for calculation, then back to float for storage
+            current_qty = Decimal(str(inventory.on_hand_quantity or 0))
+            new_qty = current_qty + transaction_quantity
+            inventory.on_hand_quantity = float(new_qty)  # type: ignore[assignment]
             inventory.updated_at = datetime.utcnow()
         else:
             inventory = Inventory(
                 product_id=line.product_id,
                 location_id=location_id,
-                on_hand_quantity=item.quantity_received,
+                on_hand_quantity=float(transaction_quantity),  # type: ignore[arg-type]
                 allocated_quantity=Decimal("0"),
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
@@ -593,34 +823,121 @@ async def receive_purchase_order(
             db.add(inventory)
 
         # Create inventory transaction
+        # STAR SCHEMA: Store in transaction unit (GRAMS for materials, native for others)
+        # Cost per unit: For materials, keep as $/KG (cost is per-KG even though qty is in grams)
         txn = InventoryTransaction(
             product_id=line.product_id,
             location_id=location_id,
             transaction_type="receipt",
             reference_type="purchase_order",
             reference_id=po.id,
-            quantity=item.quantity_received,
+            quantity=float(transaction_quantity),  # GRAMS for materials, product_unit for others
+            transaction_date=actual_received_date,  # User-entered date (when actually received)
             lot_number=item.lot_number,
-            cost_per_unit=line.unit_cost,
+            cost_per_unit=cost_per_unit_for_inventory,  # Cost per product_unit (KG for materials)
             notes=item.notes or f"Received from PO {po.po_number}",
-            created_at=datetime.utcnow(),
+            created_at=datetime.utcnow(),  # System timestamp (when entered)
             created_by=current_user.email,
         )
         db.add(txn)
         db.flush()
         transaction_ids.append(txn.id)
 
-        # Update product average cost
-        product = db.query(Product).filter(Product.id == line.product_id).first()
+        # Update product average cost (product already queried above)
+        # Use cost_per_unit_for_inventory which is already in product_unit terms
         if product:
-            # Simple weighted average update
+            # Simple weighted average update (using cost in product_unit)
             if product.average_cost is None or product.average_cost == 0:
-                product.average_cost = line.unit_cost
+                product.average_cost = cost_per_unit_for_inventory
             else:
                 # Rough weighted average (simplified)
-                product.average_cost = (product.average_cost + line.unit_cost) / 2
-            product.last_cost = line.unit_cost
+                product.average_cost = (product.average_cost + cost_per_unit_for_inventory) / 2
+            product.last_cost = cost_per_unit_for_inventory  # Store in product_unit
             product.updated_at = datetime.utcnow()
+        
+        # ============================================================================
+        # Spool Creation (if requested for material products)
+        # ============================================================================
+        if item.create_spools and item.spools:
+            # Validate product is a material/supply type
+            if product.item_type != 'supply' or not product.material_type_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Spool creation only available for material products. {product.sku} is type '{product.item_type}'"
+                )
+            
+            # Convert received quantity to grams for validation
+            # quantity_for_inventory is already in product's unit from conversion above
+            received_qty_g = quantity_for_inventory
+            product_unit_upper = (product.unit or 'EA').upper().strip()
+            
+            # Convert to grams if not already in grams
+            if product_unit_upper == 'KG':
+                received_qty_g = quantity_for_inventory * Decimal("1000")
+            elif product_unit_upper == 'G':
+                # Already in grams
+                pass
+            elif product_unit_upper == 'LB':
+                received_qty_g = quantity_for_inventory * Decimal("453.59237")
+            elif product_unit_upper == 'OZ':
+                received_qty_g = quantity_for_inventory * Decimal("28.34952")
+            else:
+                logger.warning(f"Material product {product.sku} has unexpected unit: {product.unit}, assuming grams")
+            
+            # Validate sum of spool weights equals received quantity (in grams)
+            spool_weight_sum_g = sum(Decimal(str(s.weight_g)) for s in item.spools)
+            tolerance = Decimal("0.1")  # 0.1g tolerance
+            
+            if abs(spool_weight_sum_g - received_qty_g) > tolerance:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Spool weights sum ({spool_weight_sum_g}g) must equal received quantity ({received_qty_g}g) "
+                        f"for product {product.sku}. Difference: {abs(spool_weight_sum_g - received_qty_g):.2f}g"
+                    )
+                )
+            
+            # Create spools
+            for idx, spool_data in enumerate(item.spools, start=1):
+                # Generate spool number if not provided
+                spool_number = spool_data.spool_number or f"{po.po_number}-L{line.line_number}-{idx:03d}"
+                
+                # Check uniqueness
+                existing = db.query(MaterialSpool).filter(
+                    MaterialSpool.spool_number == spool_number
+                ).first()
+                if existing:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Spool number '{spool_number}' already exists"
+                    )
+                
+                # Create spool (store in grams despite column name)
+                spool = MaterialSpool(
+                    spool_number=spool_number,
+                    product_id=line.product_id,
+                    initial_weight_kg=spool_data.weight_g,  # Actually grams despite column name
+                    current_weight_kg=spool_data.weight_g,   # Actually grams despite column name
+                    status="active",
+                    location_id=location_id,
+                    supplier_lot_number=spool_data.supplier_lot_number or item.lot_number,
+                    expiry_date=spool_data.expiry_date,
+                    notes=spool_data.notes,
+                    received_date=datetime.combine(actual_received_date, datetime.min.time()),  # Use user-entered date
+                    created_by=current_user.email,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+                db.add(spool)
+                db.flush()  # Get spool ID
+                
+                # Track created spools for response
+                spools_created.append(spool_number)
+                
+                logger.info(
+                    f"Created spool {spool_number} for {product.sku}: {spool_data.weight_g}g "
+                    f"(lot: {spool.supplier_lot_number or 'N/A'})"
+                )
 
     # Check if fully received
     all_received = all(
@@ -630,9 +947,43 @@ async def receive_purchase_order(
 
     if all_received:
         po.status = "received"
-        po.received_date = date.today()
+        po.received_date = actual_received_date  # Use user-entered date
 
     po.updated_at = datetime.utcnow()
+
+    # Record receipt event
+    event_type = "receipt" if all_received else "partial_receipt"
+    event_title = "Items Received" if all_received else "Partial Receipt"
+    event_description = f"Received {total_received} units across {lines_received} line(s)"
+    if spools_created:
+        event_description += f". Created {len(spools_created)} spool(s)."
+
+    record_purchasing_event(
+        db=db,
+        purchase_order_id=po.id,
+        event_type=event_type,
+        title=event_title,
+        description=event_description,
+        event_date=actual_received_date,
+        user_id=current_user.id,
+        metadata_key="quantity_received",
+        metadata_value=str(total_received),
+    )
+
+    # If fully received, also record status change event
+    if all_received:
+        record_purchasing_event(
+            db=db,
+            purchase_order_id=po.id,
+            event_type="status_change",
+            title="Fully Received",
+            description="All items received - PO status updated",
+            old_value="ordered",
+            new_value="received",
+            event_date=actual_received_date,
+            user_id=current_user.id,
+        )
+
     db.commit()
 
     logger.info(f"Received {total_received} items on PO {po.po_number}")
@@ -643,6 +994,7 @@ async def receive_purchase_order(
         total_quantity=total_received,
         inventory_updated=True,
         transactions_created=transaction_ids,
+        spools_created=spools_created,
     )
 
 
@@ -770,3 +1122,116 @@ async def delete_purchase_order(
 
     logger.info(f"Deleted PO {po.po_number}")
     return {"message": f"Purchase order {po.po_number} deleted"}
+
+
+# ============================================================================
+# Event Timeline
+# ============================================================================
+
+@router.get("/{po_id}/events", response_model=PurchasingEventListResponse)
+async def list_po_events(
+    po_id: int,
+    limit: int = Query(default=50, ge=1, le=200, description="Max events to return"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
+    db: Session = Depends(get_db),
+):
+    """
+    List activity events for a purchase order
+
+    Returns a timeline of all events (status changes, receipts, notes, etc.)
+    ordered by most recent first.
+    """
+    # Verify PO exists
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    # Query events with pagination
+    query = db.query(PurchasingEvent).filter(
+        PurchasingEvent.purchase_order_id == po_id
+    ).order_by(desc(PurchasingEvent.created_at))
+
+    total = query.count()
+    events = query.offset(offset).limit(limit).all()
+
+    # Build response with user names
+    items = []
+    for event in events:
+        user_name = None
+        if event.user_id and event.user:
+            user_name = event.user.full_name
+
+        items.append(PurchasingEventResponse(
+            id=event.id,
+            purchase_order_id=event.purchase_order_id,
+            user_id=event.user_id,
+            user_name=user_name,
+            event_type=event.event_type,
+            title=event.title,
+            description=event.description,
+            old_value=event.old_value,
+            new_value=event.new_value,
+            event_date=event.event_date,
+            metadata_key=event.metadata_key,
+            metadata_value=event.metadata_value,
+            created_at=event.created_at,
+        ))
+
+    return PurchasingEventListResponse(items=items, total=total)
+
+
+@router.post("/{po_id}/events", response_model=PurchasingEventResponse, status_code=201)
+async def add_po_event(
+    po_id: int,
+    request: PurchasingEventCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Add a manual event to a purchase order (typically a note)
+
+    This endpoint is for adding notes or manual tracking entries.
+    Status changes and receipts are automatically recorded by their
+    respective endpoints.
+    """
+    # Verify PO exists
+    po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    event = record_purchasing_event(
+        db=db,
+        purchase_order_id=po_id,
+        event_type=request.event_type.value,
+        title=request.title,
+        description=request.description,
+        old_value=request.old_value,
+        new_value=request.new_value,
+        event_date=request.event_date,
+        user_id=current_user.id,
+        metadata_key=request.metadata_key,
+        metadata_value=request.metadata_value,
+    )
+    db.commit()
+    db.refresh(event)
+
+    user_name = current_user.full_name
+
+    logger.info(f"Added event '{request.event_type.value}' to PO {po.po_number}")
+
+    return PurchasingEventResponse(
+        id=event.id,
+        purchase_order_id=event.purchase_order_id,
+        user_id=event.user_id,
+        user_name=user_name,
+        event_type=event.event_type,
+        title=event.title,
+        description=event.description,
+        old_value=event.old_value,
+        new_value=event.new_value,
+        event_date=event.event_date,
+        metadata_key=event.metadata_key,
+        metadata_value=event.metadata_value,
+        created_at=event.created_at,
+    )
+

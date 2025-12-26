@@ -5,7 +5,7 @@ Manufacturing Orders (MOs) for tracking production of finished goods.
 Supports creation from sales orders, manual entry, and MRP planning.
 """
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Annotated, List, Optional, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -15,6 +15,8 @@ from sqlalchemy import func, desc, or_, case
 
 from app.db.session import get_db
 from app.api.v1.endpoints.auth import get_current_user
+from app.api.v1.deps import get_pagination_params
+from app.schemas.common import PaginationParams
 from app.models import (
     User,
     ProductionOrder,
@@ -26,8 +28,10 @@ from app.models import (
 )
 from app.models.bom import BOMLine
 from app.models.inventory import Inventory
-from app.models.manufacturing import Routing, RoutingOperation, WorkCenter, Resource
-from app.services.inventory_service import process_production_completion
+from app.models.manufacturing import Routing, RoutingOperation, Resource
+from app.models.work_center import WorkCenter
+from app.models.material_spool import MaterialSpool, ProductionOrderSpool
+from app.services.inventory_service import process_production_completion, reserve_production_materials, release_production_reservations
 from app.services.uom_service import UOMConversionError
 from app.schemas.production_order import (
     ProductionOrderCreate,
@@ -37,6 +41,7 @@ from app.schemas.production_order import (
     ProductionOrderListResponse,
     ProductionOrderOperationUpdate,
     ProductionOrderOperationResponse,
+    ProductionOrderScheduleRequest,
     WorkCenterQueue,
     ProductionScheduleSummary,
     ProductionOrderSplitRequest,
@@ -44,9 +49,18 @@ from app.schemas.production_order import (
     ScrapReasonCreate,
     ScrapReasonDetail,
     ScrapReasonUpdate,
+    ProductionOrderCompleteRequest,
     ScrapReasonsResponse,
     QCInspectionRequest,
     QCInspectionResponse,
+)
+from app.core.status_config import (
+    ProductionOrderStatus,
+    OperationStatus,
+    QCStatus,
+    get_allowed_production_order_transitions,
+    validate_production_order_transition,
+    StatusTransitionError,
 )
 
 logger = logging.getLogger(__name__)
@@ -214,19 +228,23 @@ def copy_routing_to_operations(db: Session, order: ProductionOrder, routing_id: 
 
 @router.get("/", response_model=List[ProductionOrderListResponse])
 async def list_production_orders(
-    status: Optional[str] = Query(None),
-    product_id: Optional[int] = Query(None),
-    sales_order_id: Optional[int] = Query(None),
-    priority: Optional[int] = Query(None, ge=1, le=5),
-    due_before: Optional[date] = Query(None),
-    due_after: Optional[date] = Query(None),
-    search: Optional[str] = Query(None),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    pagination: Annotated[PaginationParams, Depends(get_pagination_params)],
+    status: Optional[str] = Query(None, description="Filter by status"),
+    product_id: Optional[int] = Query(None, description="Filter by product ID"),
+    sales_order_id: Optional[int] = Query(None, description="Filter by sales order ID"),
+    priority: Optional[int] = Query(None, ge=1, le=5, description="Filter by priority (1-5)"),
+    due_before: Optional[date] = Query(None, description="Filter orders due before this date"),
+    due_after: Optional[date] = Query(None, description="Filter orders due after this date"),
+    search: Optional[str] = Query(None, description="Search by PO code, product SKU, or name"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[ProductionOrderListResponse]:
-    """List production orders with filtering"""
+    """
+    List production orders with filtering and pagination.
+
+    Note: This endpoint will be updated to return ListResponse[ProductionOrderListResponse]
+    in the next API version for consistency with other list endpoints.
+    """
     query = db.query(ProductionOrder)
 
     if status:
@@ -251,7 +269,7 @@ async def list_production_orders(
             )
         )
 
-    # SQL Server doesn't support NULLS LAST, so use CASE expression
+    # Use CASE expression for NULL ordering
     query = query.order_by(
         ProductionOrder.priority.asc(),
         case((ProductionOrder.due_date.is_(None), 1), else_=0),  # NULLs last
@@ -259,7 +277,7 @@ async def list_production_orders(
         ProductionOrder.created_at.desc(),
     )
 
-    orders = query.offset(skip).limit(limit).all()
+    orders = query.offset(pagination.offset).limit(pagination.limit).all()
 
     result = []
     for order in orders:
@@ -322,13 +340,13 @@ async def create_production_order(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Find default BOM if not specified
+    # Find default BOM if not specified - use most recently updated active BOM
     bom_id = request.bom_id
     if not bom_id:
         default_bom = db.query(BOM).filter(
             BOM.product_id == request.product_id,
-            BOM.active == True  # noqa: E712 - SQL Server requires == True
-        ).first()
+            BOM.active == True  # noqa: E712
+        ).order_by(desc(BOM.updated_at)).first()
         if default_bom:
             bom_id = default_bom.id
 
@@ -337,7 +355,7 @@ async def create_production_order(
     if not routing_id:
         default_routing = db.query(Routing).filter(
             Routing.product_id == request.product_id,
-            Routing.is_active == True  # noqa: E712 - SQL Server requires == True
+            Routing.is_active == True  # noqa: E712
         ).first()
         if default_routing:
             routing_id = default_routing.id
@@ -368,6 +386,13 @@ async def create_production_order(
     if routing_id:  # type: ignore[truthy-function]
         copy_routing_to_operations(db, order, routing_id)  # type: ignore[arg-type]
 
+    # Allocate materials for this production order
+    reserve_production_materials(
+        db=db,
+        production_order=order,
+        created_by=current_user.email,
+    )
+
     db.commit()
     db.refresh(order)
 
@@ -387,7 +412,7 @@ async def get_scrap_reasons(
 ) -> ScrapReasonsResponse:
     """Get list of active scrap reasons from database"""
     reasons = db.query(ScrapReason).filter(
-        ScrapReason.active == True  # noqa: E712 - SQL Server requires == True
+        ScrapReason.active == True  # noqa: E712
     ).order_by(ScrapReason.sequence, ScrapReason.name).all()
 
     return ScrapReasonsResponse(
@@ -508,6 +533,97 @@ async def delete_scrap_reason(
     db.commit()
 
     return {"message": f"Scrap reason '{reason.code}' has been deactivated"}
+
+
+# ============================================================================
+# Status Transitions
+# ============================================================================
+
+@router.get("/status-transitions")
+async def get_status_transitions(
+    current_status: Optional[str] = Query(None, description="Get transitions for a specific status"),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get valid status transitions for production orders.
+
+    Returns:
+    - All valid statuses and their allowed transitions
+    - If current_status is provided, returns only transitions for that status
+
+    Used by frontend to show only valid status options in dropdowns.
+    """
+    all_statuses = [s.value for s in ProductionOrderStatus]
+
+    if current_status:
+        if current_status not in all_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{current_status}'. Must be one of: {', '.join(all_statuses)}"
+            )
+        allowed = get_allowed_production_order_transitions(current_status)
+        return {
+            "current_status": current_status,
+            "allowed_transitions": allowed,
+            "is_terminal": len(allowed) == 0,
+        }
+
+    # Return all statuses with their transitions
+    transitions = {}
+    for status in ProductionOrderStatus:
+        allowed = get_allowed_production_order_transitions(status.value)
+        transitions[status.value] = {
+            "allowed_transitions": allowed,
+            "is_terminal": len(allowed) == 0,
+        }
+
+    return {
+        "statuses": all_statuses,
+        "transitions": transitions,
+        "terminal_statuses": [s.value for s in ProductionOrderStatus if len(get_allowed_production_order_transitions(s.value)) == 0],
+    }
+
+
+@router.get("/qc-statuses")
+async def get_qc_statuses(
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get valid QC status values for production orders.
+
+    Used by frontend to populate QC status dropdowns.
+    """
+    return {
+        "statuses": [s.value for s in QCStatus],
+        "descriptions": {
+            QCStatus.NOT_REQUIRED.value: "QC inspection not required for this product",
+            QCStatus.PENDING.value: "Awaiting QC inspection",
+            QCStatus.PASSED.value: "QC inspection passed",
+            QCStatus.FAILED.value: "QC inspection failed",
+            QCStatus.WAIVED.value: "QC inspection waived (document reason)",
+        },
+    }
+
+
+@router.get("/operation-statuses")
+async def get_operation_statuses(
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get valid operation status values for production order operations.
+
+    Used by frontend to populate operation status dropdowns.
+    """
+    return {
+        "statuses": [s.value for s in OperationStatus],
+        "descriptions": {
+            OperationStatus.PENDING.value: "Operation not yet started",
+            OperationStatus.QUEUED.value: "Operation is queued and ready to start",
+            OperationStatus.RUNNING.value: "Operation is currently in progress",
+            OperationStatus.COMPLETE.value: "Operation completed successfully",
+            OperationStatus.SKIPPED.value: "Operation was skipped",
+        },
+    }
 
 
 # ============================================================================
@@ -680,7 +796,7 @@ async def get_required_orders(
         # Find active BOM for this product
         bom = db.query(BOM).filter(
             BOM.product_id == product_id,
-            BOM.active == True  # noqa: E712 - SQL Server requires == True
+            BOM.active == True  # noqa: E712
         ).first()
 
         if not bom:
@@ -803,6 +919,61 @@ async def delete_production_order(
     return {"message": "Production order deleted"}
 
 
+@router.put("/{order_id}/schedule", response_model=ProductionOrderResponse)
+async def schedule_production_order(
+    order_id: int,
+    request: ProductionOrderScheduleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProductionOrderResponse:
+    """
+    Schedule a production order to a specific time and optionally a resource.
+
+    Updates scheduled_start and scheduled_end on the order.
+    If resource_id is provided, assigns that resource to the first operation.
+    """
+    order = db.query(ProductionOrder).filter(ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
+
+    if order.status in ("complete", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"Cannot schedule {order.status} order")
+
+    # Validate times
+    if request.scheduled_end <= request.scheduled_start:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+
+    # Update order schedule
+    order.scheduled_start = request.scheduled_start  # type: ignore[assignment]
+    order.scheduled_end = request.scheduled_end  # type: ignore[assignment]
+    if request.notes:
+        order.notes = (order.notes or "") + f"\n[Scheduled: {request.notes}]"  # type: ignore[assignment]
+    order.updated_at = datetime.utcnow()  # type: ignore[assignment]
+
+    # If resource_id provided, assign to first operation
+    if request.resource_id:
+        # Validate resource exists
+        resource = db.query(Resource).filter(Resource.id == request.resource_id).first()
+        if not resource:
+            raise HTTPException(status_code=404, detail="Resource not found")
+
+        # Find first operation and assign resource
+        first_op = (
+            db.query(ProductionOrderOperation)
+            .filter(ProductionOrderOperation.production_order_id == order_id)
+            .order_by(ProductionOrderOperation.sequence)
+            .first()
+        )
+        if first_op:
+            first_op.resource_id = request.resource_id  # type: ignore[assignment]
+            first_op.updated_at = datetime.utcnow()  # type: ignore[assignment]
+
+    db.commit()
+    db.refresh(order)
+
+    return build_production_order_response(order, db)
+
+
 # ============================================================================
 # Status Transitions
 # ============================================================================
@@ -818,8 +989,11 @@ async def release_production_order(
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    if order.status != "draft":  # type: ignore[comparison-overlap]
-        raise HTTPException(status_code=400, detail=f"Cannot release order in {order.status} status")
+    # Validate status transition using formal rules
+    try:
+        validate_production_order_transition(order.status, ProductionOrderStatus.RELEASED.value)
+    except StatusTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     order.status = "released"  # type: ignore[assignment]
     order.released_at = datetime.utcnow()  # type: ignore[assignment]
@@ -846,8 +1020,11 @@ async def start_production_order(
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    if order.status not in ("released", "on_hold"):
-        raise HTTPException(status_code=400, detail=f"Cannot start order in {order.status} status")
+    # Validate status transition using formal rules
+    try:
+        validate_production_order_transition(order.status, ProductionOrderStatus.IN_PROGRESS.value)
+    except StatusTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     order.status = "in_progress"  # type: ignore[assignment]
     if not order.actual_start:  # type: ignore[truthy-function]
@@ -863,26 +1040,75 @@ async def start_production_order(
 @router.post("/{order_id}/complete", response_model=ProductionOrderResponse)
 async def complete_production_order(
     order_id: int,
+    request: Optional[ProductionOrderCompleteRequest] = None,
+    # Keep query params for backward compatibility
     quantity_completed: Optional[Decimal] = Query(None),
     quantity_scrapped: Optional[Decimal] = Query(None),
+    force_close_short: bool = Query(False, description="Explicitly close order short without producing all units"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProductionOrderResponse:
-    """Complete a production order"""
+    """Complete a production order.
+
+    Accepts either query parameters (legacy) or a request body with spool tracking.
+
+    If quantity_completed + quantity_scrapped < quantity_ordered, the order
+    would be closed "short" (fewer units produced than ordered). This requires
+    force_close_short=true to proceed, otherwise returns a 400 error.
+
+    Optional: Include spools_used in request body to record material traceability.
+    """
     order = db.query(ProductionOrder).filter(ProductionOrder.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    if order.status != "in_progress":  # type: ignore[comparison-overlap]
-        raise HTTPException(status_code=400, detail=f"Cannot complete order in {order.status} status")
+    # Validate status transition using formal rules
+    try:
+        validate_production_order_transition(order.status, ProductionOrderStatus.COMPLETE.value)
+    except StatusTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    # Default quantity_completed to quantity_ordered if not provided
-    if quantity_completed is not None:
-        order.quantity_completed = quantity_completed  # type: ignore[assignment]
-    else:
-        order.quantity_completed = order.quantity_ordered  # type: ignore[assignment]
-    if quantity_scrapped is not None:
-        order.quantity_scrapped = quantity_scrapped  # type: ignore[assignment]
+    # Merge request body with query params (body takes precedence)
+    qty_completed_val = quantity_completed
+    qty_scrapped_val = quantity_scrapped
+    force_close_val = force_close_short
+    spools_used = None
+
+    if request:
+        if request.quantity_completed is not None:
+            qty_completed_val = request.quantity_completed
+        if request.quantity_scrapped is not None:
+            qty_scrapped_val = request.quantity_scrapped
+        if request.force_close_short:
+            force_close_val = request.force_close_short
+        spools_used = request.spools_used
+
+    # Calculate quantities for validation
+    qty_completed = qty_completed_val if qty_completed_val is not None else order.quantity_ordered
+    qty_scrapped_existing = Decimal(str(order.quantity_scrapped or 0))
+    qty_scrapped_new = qty_scrapped_val if qty_scrapped_val is not None else Decimal(0)
+    qty_scrapped_total = qty_scrapped_existing + qty_scrapped_new
+    total_accounted = Decimal(str(qty_completed)) + qty_scrapped_total
+
+    # Validate: prevent closing short without explicit acknowledgment
+    if total_accounted < order.quantity_ordered:  # type: ignore[operator]
+        shortfall = order.quantity_ordered - total_accounted  # type: ignore[operator]
+        if not force_close_val:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot complete: order would be closed {shortfall} units short. "
+                       f"Ordered: {order.quantity_ordered}, Completing: {qty_completed}, "
+                       f"Scrapped: {qty_scrapped_total}. "
+                       f"Use force_close_short=true to close anyway, or scrap the remaining units first."
+            )
+        # If force_close_short=True, add note and proceed
+        close_short_note = f"\n[{datetime.utcnow().strftime('%Y-%m-%d %H:%M')}] CLOSED SHORT: {shortfall} units unaccounted (neither completed nor scrapped)"
+        order.notes = (order.notes or "") + close_short_note  # type: ignore[assignment]
+
+    # Apply quantities
+    order.quantity_completed = qty_completed  # type: ignore[assignment]
+    if qty_scrapped_val is not None:
+        order.quantity_scrapped = qty_scrapped_total  # type: ignore[assignment]
 
     order.status = "complete"  # type: ignore[assignment]
     order.qc_status = "pending"  # type: ignore[assignment] # Trigger QC workflow
@@ -950,6 +1176,62 @@ async def complete_production_order(
             detail=str(e)
         )
 
+    # =========================================================================
+    # Record spool consumption for material traceability
+    # This creates the linkage between spools and production orders,
+    # enabling forward trace (spool → products) and backward trace (product → spools)
+    # =========================================================================
+    if spools_used:
+        for spool_usage in spools_used:
+            # Validate spool exists
+            spool = db.query(MaterialSpool).filter(MaterialSpool.id == spool_usage.spool_id).first()
+            if not spool:
+                logging.warning(f"Spool {spool_usage.spool_id} not found for traceability - skipping")
+                continue
+
+            # Check if consumption already recorded - update if so
+            existing = db.query(ProductionOrderSpool).filter(
+                ProductionOrderSpool.production_order_id == order_id,
+                ProductionOrderSpool.spool_id == spool_usage.spool_id,
+            ).first()
+
+            # Calculate weight consumed - use provided value or estimate from BOM
+            weight_consumed_g = spool_usage.weight_consumed_g
+            if weight_consumed_g is None:
+                # Estimate from BOM if not provided
+                bom_line = db.query(BOMLine).filter(
+                    BOMLine.bom_id == order.bom_id,
+                    BOMLine.component_id == spool_usage.product_id,
+                ).first()
+                if bom_line:
+                    # BOM quantity * units completed
+                    weight_consumed_g = Decimal(str(bom_line.quantity)) * Decimal(str(qty_completed))
+                else:
+                    weight_consumed_g = Decimal("0")
+
+            if existing:
+                # Update existing record
+                existing.weight_consumed_kg = existing.weight_consumed_kg + weight_consumed_g  # type: ignore[operator]
+            else:
+                # Create new consumption record
+                consumption = ProductionOrderSpool(
+                    production_order_id=order_id,
+                    spool_id=spool_usage.spool_id,
+                    weight_consumed_kg=weight_consumed_g,  # Field name is _kg but stores grams
+                    created_by=current_user.email if current_user else None,
+                )
+                db.add(consumption)
+
+            # Update spool's current weight
+            new_weight = (spool.current_weight_kg or Decimal("0")) - weight_consumed_g
+            if new_weight < 0:
+                new_weight = Decimal("0")
+            spool.current_weight_kg = new_weight  # type: ignore[assignment]
+
+            # Mark as empty if weight is effectively zero
+            if new_weight < Decimal("5"):  # Less than 5g = empty
+                spool.status = "empty"  # type: ignore[assignment]
+
     # NOTE: Sales order advancement to ready_to_ship now happens after QC inspection passes
     # See POST /{order_id}/qc endpoint
 
@@ -971,8 +1253,18 @@ async def cancel_production_order(
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    if order.status == "complete":  # type: ignore[comparison-overlap]
-        raise HTTPException(status_code=400, detail="Cannot cancel completed order")
+    # Validate status transition using formal rules
+    try:
+        validate_production_order_transition(order.status, ProductionOrderStatus.CANCELLED.value)
+    except StatusTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Release material reservations before cancelling
+    release_production_reservations(
+        db=db,
+        production_order=order,
+        created_by=current_user.email,
+    )
 
     order.status = "cancelled"  # type: ignore[assignment]
     if notes:
@@ -997,8 +1289,11 @@ async def hold_production_order(
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    if order.status in ("complete", "cancelled"):
-        raise HTTPException(status_code=400, detail=f"Cannot hold {order.status} order")
+    # Validate status transition using formal rules
+    try:
+        validate_production_order_transition(order.status, ProductionOrderStatus.ON_HOLD.value)
+    except StatusTransitionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     order.status = "on_hold"  # type: ignore[assignment]
     if notes:
@@ -1495,7 +1790,7 @@ async def get_queue_by_work_center(
     current_user: User = Depends(get_current_user),
 ) -> List[WorkCenterQueue]:
     """Get operations queued at each work center"""
-    work_centers = db.query(WorkCenter).filter(WorkCenter.active == True)  # noqa: E712.all()  # noqa: E712 - SQL Server requires == True
+    work_centers = db.query(WorkCenter).filter(WorkCenter.is_active == True).all()  # noqa: E712
 
     result = []
     for wc in work_centers:
@@ -1597,12 +1892,12 @@ async def scrap_production_order(
     # Validate scrap reason against database
     valid_reason = db.query(ScrapReason).filter(
         ScrapReason.code == scrap_reason,
-        ScrapReason.active == True  # noqa: E712 - SQL Server requires == True
+        ScrapReason.active == True  # noqa: E712
     ).first()
     if not valid_reason:
         # Get list of valid codes for error message
         valid_codes = db.query(ScrapReason.code).filter(
-            ScrapReason.active == True  # noqa: E712 - SQL Server requires == True
+            ScrapReason.active == True  # noqa: E712
         ).all()
         valid_list = ", ".join([c[0] for c in valid_codes])
         raise HTTPException(
@@ -1872,3 +2167,4 @@ async def get_order_cost_breakdown(
         },
         "order_breakdown": breakdown,
     }
+

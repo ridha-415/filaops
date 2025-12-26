@@ -29,6 +29,44 @@ const AdminSettings = () => {
   const [checkingManually, setCheckingManually] = useState(false);
   const [currentVersion, setCurrentVersion] = useState(getCurrentVersionSync());
 
+  // Common timezones (grouped by region)
+  const timezoneOptions = [
+    // Americas
+    { value: "America/New_York", label: "US - Eastern Time (ET)" },
+    { value: "America/Chicago", label: "US - Central Time (CT)" },
+    { value: "America/Denver", label: "US - Mountain Time (MT)" },
+    { value: "America/Phoenix", label: "US - Arizona (no DST)" },
+    { value: "America/Los_Angeles", label: "US - Pacific Time (PT)" },
+    { value: "America/Anchorage", label: "US - Alaska Time (AKT)" },
+    { value: "Pacific/Honolulu", label: "US - Hawaii Time (HT)" },
+    { value: "America/Toronto", label: "Canada - Eastern" },
+    { value: "America/Vancouver", label: "Canada - Pacific" },
+    { value: "America/Mexico_City", label: "Mexico - Central" },
+    { value: "America/Sao_Paulo", label: "Brazil - Sao Paulo" },
+    // Europe
+    { value: "Europe/London", label: "UK - London (GMT/BST)" },
+    { value: "Europe/Paris", label: "Europe - Central (CET)" },
+    { value: "Europe/Berlin", label: "Germany - Berlin" },
+    { value: "Europe/Amsterdam", label: "Netherlands - Amsterdam" },
+    // Asia
+    { value: "Asia/Dubai", label: "UAE - Dubai (GST)" },
+    { value: "Asia/Kolkata", label: "India - IST" },
+    { value: "Asia/Singapore", label: "Singapore (SGT)" },
+    { value: "Asia/Hong_Kong", label: "Hong Kong (HKT)" },
+    { value: "Asia/Tokyo", label: "Japan - Tokyo (JST)" },
+    { value: "Asia/Shanghai", label: "China - Shanghai (CST)" },
+    { value: "Asia/Seoul", label: "South Korea - Seoul (KST)" },
+    // Australia & Pacific
+    { value: "Australia/Perth", label: "Australia - Perth (AWST)" },
+    { value: "Australia/Adelaide", label: "Australia - Adelaide (ACST)" },
+    { value: "Australia/Sydney", label: "Australia - Sydney (AEST)" },
+    { value: "Australia/Brisbane", label: "Australia - Brisbane (no DST)" },
+    { value: "Australia/Melbourne", label: "Australia - Melbourne (AEST)" },
+    { value: "Pacific/Auckland", label: "New Zealand (NZST)" },
+    // UTC
+    { value: "UTC", label: "UTC (Coordinated Universal Time)" },
+  ];
+
   // Form state
   const [form, setForm] = useState({
     company_name: "",
@@ -38,6 +76,7 @@ const AdminSettings = () => {
     company_state: "",
     company_zip: "",
     company_country: "USA",
+    timezone: "America/New_York",
     company_phone: "",
     company_email: "",
     company_website: "",
@@ -48,6 +87,10 @@ const AdminSettings = () => {
     default_quote_validity_days: 30,
     quote_terms: "",
     quote_footer: "",
+    business_hours_start: 8,
+    business_hours_end: 16,
+    business_days_per_week: 5,
+    business_work_days: "0,1,2,3,4", // Mon-Fri
   });
 
   useEffect(() => {
@@ -89,6 +132,7 @@ const AdminSettings = () => {
           company_state: data.company_state || "",
           company_zip: data.company_zip || "",
           company_country: data.company_country || "USA",
+          timezone: data.timezone || "America/New_York",
           company_phone: data.company_phone || "",
           company_email: data.company_email || "",
           company_website: data.company_website || "",
@@ -99,6 +143,10 @@ const AdminSettings = () => {
           default_quote_validity_days: data.default_quote_validity_days || 30,
           quote_terms: data.quote_terms || "",
           quote_footer: data.quote_footer || "",
+          business_hours_start: data.business_hours_start ?? 8,
+          business_hours_end: data.business_hours_end ?? 16,
+          business_days_per_week: data.business_days_per_week ?? 5,
+          business_work_days: data.business_work_days || "0,1,2,3,4",
         });
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -384,6 +432,27 @@ const AdminSettings = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
+                Timezone
+              </label>
+              <select
+                name="timezone"
+                value={form.timezone}
+                onChange={handleChange}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+              >
+                {timezoneOptions.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-400 mt-1">
+                Used for date/time displays in reports and charts
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
                 Phone
               </label>
               <input
@@ -556,6 +625,91 @@ const AdminSettings = () => {
                 placeholder="Thank you for your business! Contact us at..."
               />
             </div>
+          </div>
+        </div>
+
+        {/* Business Hours Settings */}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Business Hours (Production Operations)
+          </h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Configure default business hours for non-printer operations. These hours apply to all work centers except printer pools.
+            Printer pools run 20 hours/day (4am-12am, daily) and are not affected by these settings.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Start Time (Hour)
+              </label>
+              <input
+                type="number"
+                name="business_hours_start"
+                value={form.business_hours_start}
+                onChange={handleChange}
+                min="0"
+                max="23"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                placeholder="8"
+              />
+              <p className="text-sm text-gray-400 mt-1">
+                0-23 (e.g., 8 for 8am)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                End Time (Hour)
+              </label>
+              <input
+                type="number"
+                name="business_hours_end"
+                value={form.business_hours_end}
+                onChange={handleChange}
+                min="0"
+                max="23"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                placeholder="16"
+              />
+              <p className="text-sm text-gray-400 mt-1">
+                0-23 (e.g., 16 for 4pm)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Days Per Week
+              </label>
+              <input
+                type="number"
+                name="business_days_per_week"
+                value={form.business_days_per_week}
+                onChange={handleChange}
+                min="1"
+                max="7"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                placeholder="5"
+              />
+              <p className="text-sm text-gray-400 mt-1">
+                1-7 (default: 5 for Mon-Fri)
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Work Days (comma-separated)
+            </label>
+            <input
+              type="text"
+              name="business_work_days"
+              value={form.business_work_days}
+              onChange={handleChange}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+              placeholder="0,1,2,3,4"
+            />
+            <p className="text-sm text-gray-400 mt-1">
+              0=Monday, 1=Tuesday, ..., 6=Sunday. Example: "0,1,2,3,4" for Mon-Fri
+            </p>
           </div>
         </div>
 

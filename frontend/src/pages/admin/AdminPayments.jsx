@@ -39,7 +39,6 @@ export default function AdminPayments() {
   const token = localStorage.getItem("adminToken");
 
   // State
-  const [activeTab, setActiveTab] = useState("payments"); // payments | outstanding
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -83,7 +82,7 @@ export default function AdminPayments() {
       if (res.ok) {
         setDashboard(await res.json());
       }
-    } catch (err) {
+    } catch {
       // Non-critical: Dashboard stats fetch failure - payment list still works
     }
   };
@@ -117,7 +116,7 @@ export default function AdminPayments() {
           totalPages: data.total_pages,
         });
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to load payments");
     } finally {
       setLoading(false);
@@ -142,7 +141,7 @@ export default function AdminPayments() {
         const err = await res.json();
         toast.error(err.detail || "Failed to void payment");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to void payment");
     }
   };

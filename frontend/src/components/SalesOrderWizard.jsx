@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../config/api";
+import { validateRequired, validateQuantity } from "../utils/validation";
 
 // Item type options
 const ITEM_TYPES = [
@@ -170,7 +171,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
           setLineItems(data.lineItems || []);
           setCurrentStep(data.currentStep || 1);
           sessionStorage.removeItem("pendingOrderData");
-        } catch (e) {
+        } catch {
           // Session storage failure is non-critical - order creation will proceed
         }
       }
@@ -276,7 +277,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         setCustomers(customersList);
         return customersList;
       }
-    } catch (err) {
+    } catch {
       // Customers fetch failure is non-critical - customer selector will be empty
     }
     return [];
@@ -294,7 +295,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await res.json();
         setProducts(data.items || data || []);
       }
-    } catch (err) {
+    } catch {
       // Products fetch failure is non-critical - product selector will be empty
     }
   };
@@ -308,7 +309,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await res.json();
         setCategories(data);
       }
-    } catch (err) {
+    } catch {
       // Categories fetch failure is non-critical - category selector will be empty
     }
   };
@@ -353,7 +354,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
       }
 
       setComponents(allComponents);
-    } catch (err) {
+    } catch {
       // Components fetch failure is non-critical - component selector will be empty
     }
   };
@@ -367,7 +368,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await res.json();
         setWorkCenters(data);
       }
-    } catch (err) {
+    } catch {
       // Work centers fetch failure is non-critical - work center selector will be empty
     }
   };
@@ -384,7 +385,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await res.json();
         setRoutingTemplates(data);
       }
-    } catch (err) {
+    } catch {
       // Routing templates fetch failure is non-critical - templates list will be empty
     }
   };
@@ -401,7 +402,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await typesRes.json();
         setMaterialTypes(data.materials || []);
       }
-    } catch (err) {
+    } catch {
       // Material types fetch failure is non-critical - material type selector will be empty
     }
   };
@@ -419,7 +420,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
           tax_name: data.tax_name || "Sales Tax",
         });
       }
-    } catch (err) {
+    } catch {
       // Tax settings fetch failure is non-critical - tax will be calculated on backend
     }
   };
@@ -439,7 +440,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
         const data = await res.json();
         setAllColors(data.colors || []);
       }
-    } catch (err) {
+    } catch {
       // Colors fetch failure - color selector will be empty
     }
   };
@@ -885,6 +886,49 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Validate current step before proceeding
+  const validateStep = (step) => {
+    setError(null);
+
+    if (step === 1) {
+      // Validate customer selection
+      const customerError = validateRequired(
+        orderData.customer_id,
+        "Customer"
+      );
+      if (customerError) {
+        setError(customerError);
+        return false;
+      }
+    }
+
+    if (step === 2) {
+      // Validate line items
+      if (lineItems.length === 0) {
+        setError("Please add at least one product to the order");
+        return false;
+      }
+
+      // Validate each line item has quantity > 0
+      for (const item of lineItems) {
+        const qtyError = validateQuantity(item.quantity, "Quantity");
+        if (qtyError) {
+          setError(`${item.name}: ${qtyError}`);
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
+  // Handle step transition
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(currentStep + 1);
     }
   };
 
@@ -2663,7 +2707,7 @@ export default function SalesOrderWizard({ isOpen, onClose, onSuccess }) {
 
           {currentStep < 3 ? (
             <button
-              onClick={() => setCurrentStep(currentStep + 1)}
+              onClick={handleNextStep}
               disabled={currentStep === 2 && lineItems.length === 0}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50"
             >

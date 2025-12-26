@@ -1,5 +1,7 @@
 # How to Upgrade to the Latest FilaOps Release 🚀
 
+> ⚠️ **HISTORICAL**: This document describes Docker-based upgrades. For current native upgrade process, see [UPGRADE.md](../UPGRADE.md).
+
 Hey everyone! Got a question about upgrading to v1.5.0? Here's a quick guide to help you out.
 
 ## TL;DR - Quick Upgrade

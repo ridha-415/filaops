@@ -166,7 +166,7 @@ async def register_user(
         user_id=new_user.id,
         token_hash=token_hash,
         expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-        created_at=datetime.utcnow(),  # Explicitly set created_at for SQL Server
+        created_at=datetime.utcnow(),  # Explicitly set created_at
     )
     db.add(refresh_token_record)
     db.commit()
@@ -277,7 +277,7 @@ async def login_user(
             user_id=user.id,
             token_hash=token_hash,
             expires_at=expires_at,
-            created_at=datetime.utcnow(),  # Explicitly set created_at for SQL Server
+            created_at=datetime.utcnow(),  # Explicitly set created_at
         )
         db.add(refresh_token_record)
         db.commit()
@@ -339,7 +339,7 @@ async def refresh_access_token(
     stored_token = db.query(RefreshToken).filter(
         RefreshToken.token_hash == token_hash,
         RefreshToken.user_id == user_id,
-        RefreshToken.revoked== False
+        RefreshToken.revoked.is_(False)
     ).first()
 
     if not stored_token or not stored_token.is_valid:
@@ -364,7 +364,7 @@ async def refresh_access_token(
         user_id=user.id,
         token_hash=new_token_hash,
         expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-        created_at=datetime.utcnow(),  # Explicitly set created_at for SQL Server
+        created_at=datetime.utcnow(),  # Explicitly set created_at
     )
     db.add(new_refresh_token_record)
     db.commit()
@@ -927,7 +927,7 @@ async def complete_password_reset(
     # Revoke all existing refresh tokens for security
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user.id,
-        RefreshToken.revoked== False
+        RefreshToken.revoked.is_(False)
     ).update({"revoked": True, "revoked_at": datetime.utcnow()})
 
     db.commit()

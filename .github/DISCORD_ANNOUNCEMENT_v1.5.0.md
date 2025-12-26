@@ -1,5 +1,7 @@
 # Discord Announcement - v1.5.0
 
+> ⚠️ **HISTORICAL**: This document describes Docker-based v1.5.0. For current native installation, see [INSTALL.md](../INSTALL.md).
+
 ---
 
 ## Short Version (Announcements Channel)

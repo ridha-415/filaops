@@ -31,7 +31,7 @@ const AdminLicense = () => {
         const data = await response.json();
         setLicenseInfo(data);
       }
-    } catch (error) {
+    } catch {
       // License info fetch failed - license section will be empty
     }
   };
@@ -65,7 +65,7 @@ const AdminLicense = () => {
       } else {
         setError(data.detail || "Failed to activate license");
       }
-    } catch (error) {
+    } catch {
       setError("Failed to activate license. Please try again.");
     } finally {
       setActivating(false);
@@ -94,7 +94,7 @@ const AdminLicense = () => {
         setSuccess("License deactivated. You are now on the Open tier.");
         window.location.reload();
       }
-    } catch (error) {
+    } catch {
       setError("Failed to deactivate license");
     }
   };

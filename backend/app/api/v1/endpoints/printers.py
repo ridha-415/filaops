@@ -21,6 +21,7 @@ from app.logging_config import get_logger
 from app.models.printer import Printer
 from app.api.v1.endpoints.auth import get_current_user
 from app.models.user import User
+from app.core.features import enforce_resource_limit, get_current_tier
 from app.schemas.printer import (
     PrinterBrand,
     PrinterStatus,
@@ -167,7 +168,7 @@ async def list_printers(
     query = db.query(Printer)
 
     if active_only:
-        query = query.filter(Printer.active == True)  # noqa: E712  # noqa: E712 - SQL Server requires == True
+        query = query.filter(Printer.active.is_(True))
 
     if brand:
         query = query.filter(Printer.brand == brand.value)
@@ -223,7 +224,17 @@ async def create_printer(
     Create a new printer
 
     The printer code can be auto-generated if not provided.
+
+    Note: Subject to tier limits. Community tier allows up to 4 printers.
     """
+    # Check tier limits before creating
+    current_printer_count = db.query(Printer).filter(
+        Printer.active.is_(True)
+    ).count()
+
+    user_tier = get_current_tier(db, current_user)
+    enforce_resource_limit(db, "printers", current_printer_count, user_tier.value)
+
     # Check for duplicate code
     if db.query(Printer).filter(Printer.code == data.code).first():
         raise HTTPException(
@@ -681,7 +692,7 @@ async def get_printers_active_work(
 
     # Get all active printers with work centers
     printers = db.query(Printer).filter(
-        Printer.active == True,  # noqa: E712  # noqa: E712
+        Printer.active.is_(True),  # noqa: E712  # noqa: E712
         Printer.work_center_id.isnot(None)
     ).all()
 

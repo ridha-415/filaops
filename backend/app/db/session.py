@@ -10,14 +10,11 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 # Use the database_url property from settings
-# This handles both Windows Authentication (local dev) and SQL Server auth (Docker)
+# PostgreSQL connection configuration
 connection_string = settings.database_url
 
 # Log connection info (without password)
-if settings.DB_TRUSTED_CONNECTION:
-    logger.info(f"Database connection: {settings.DB_HOST}/{settings.DB_NAME} (Windows Auth)")
-else:
-    logger.info(f"Database connection: {settings.DB_HOST}/{settings.DB_NAME} (SQL Server Auth)")
+logger.info(f"Database connection: {settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME} (PostgreSQL)")
 
 # Create engine
 engine = create_engine(

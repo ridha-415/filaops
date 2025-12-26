@@ -150,7 +150,7 @@ export default function AdminCustomers() {
             const data = JSON.parse(pendingData);
             data.newCustomerId = savedCustomer.id;
             sessionStorage.setItem("pendingOrderData", JSON.stringify(data));
-          } catch (e) {
+          } catch {
             // Session storage update failure is non-critical - order creation will proceed
           }
         }
@@ -784,8 +784,8 @@ function CustomerDetailsModal({ customer, onClose, onEdit }) {
         // API returns array directly
         setOrders(Array.isArray(data) ? data : []);
       }
-    } catch (err) {
-      setError("Failed to load orders. Please refresh the page.");
+    } catch {
+      console.error("Failed to load customer orders");
     } finally {
       setLoadingOrders(false);
     }

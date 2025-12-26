@@ -3,26 +3,33 @@ FilaOps ERP - Main FastAPI Application
 """
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from datetime import datetime
 
-# Import limiter BEFORE api routes (decorators need it at import time)
-from app.core.limiter import limiter
+from app.core.limiter import apply_rate_limiting
 from app.api.v1 import router as api_v1_router
 from app.core.config import settings
-from app.exceptions import BLB3DException
+from app.exceptions import FilaOpsException
 from app.logging_config import setup_logging, get_logger
 
 # Setup structured logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn="https://25adcc072579ef98fbb6b54096aca34f@o4510598139478016.ingest.us.sentry.io/4510598147473408",
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+    environment=getattr(settings, "ENVIRONMENT", "development"),
+    release=f"filaops@{settings.VERSION}",
+)
 
 
 # ===================
@@ -37,60 +44,38 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Prevent clickjacking
         response.headers["X-Frame-Options"] = "DENY"
-
         # Prevent MIME type sniffing
         response.headers["X-Content-Type-Options"] = "nosniff"
-
-        # XSS protection (legacy but still useful for older browsers)
+        # XSS protection (legacy)
         response.headers["X-XSS-Protection"] = "1; mode=block"
-
-        # Referrer policy - don't leak full URL to external sites
+        # Referrer policy
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-
-        # Permissions policy - restrict browser features
+        # Permissions policy
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-
-        # HSTS - enforce HTTPS (only in production)
+        # HSTS in production
         if getattr(settings, "ENVIRONMENT", "development") == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-
         return response
 
 
 def init_database():
-    """Initialize database tables on startup.
-    
-    Creates all tables from SQLAlchemy models if they don't exist.
-    Safe to run multiple times - only creates missing tables.
-    """
+    """Initialize database tables on startup (idempotent)."""
     try:
         from app.db.session import engine
         from app.db.base import Base
-        
-        # Import all models so they're registered with Base.metadata
-        # The models/__init__.py imports everything we need
         import app.models  # noqa: F401
-        
         logger.info("Checking database tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables ready")
-        
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
-        # Don't raise - let the app start and show errors on first request
-        # This allows health checks to pass while DB issues are debugged
 
 
 def seed_default_data():
-    """Check if setup is needed (no users exist).
-    
-    NOTE: We no longer auto-create admin users for security.
-    Users create their own admin account via /setup on first run.
-    """
+    """Check if setup is needed (no users exist)."""
     try:
         from app.db.session import SessionLocal
         from app.models.user import User
-        
         db = SessionLocal()
         try:
             user_count = db.query(User).count()
@@ -100,7 +85,6 @@ def seed_default_data():
                 logger.info(f"Found {user_count} existing users")
         finally:
             db.close()
-            
     except Exception as e:
         logger.warning(f"Could not check user data: {e}")
 
@@ -108,7 +92,6 @@ def seed_default_data():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    # Startup
     logger.info(
         "Starting FilaOps ERP API",
         extra={
@@ -117,16 +100,9 @@ async def lifespan(app: FastAPI):
             "debug": getattr(settings, "DEBUG", False),
         }
     )
-    
-    # Initialize database tables
     init_database()
-    
-    # Seed default data (admin user)
     seed_default_data()
-    
     yield
-    
-    # Shutdown
     logger.info("Shutting down FilaOps ERP API")
 
 
@@ -138,20 +114,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Set up rate limiter state
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+# Optional rate limiting (no crash if slowapi isn't installed)
+app.state.limiter, RATE_LIMITS_ENABLED = apply_rate_limiting(app)
 
-# Security headers middleware (outermost - runs first on response)
+# Security headers middleware (outermost)
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Rate limiting middleware (must be before CORS)
-app.add_middleware(SlowAPIMiddleware)
-
-# CORS middleware - restricted to necessary methods and headers
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS if hasattr(settings, 'ALLOWED_ORIGINS') else ["*"],
+    allow_origins=getattr(settings, 'ALLOWED_ORIGINS', ["*"]),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
@@ -162,76 +134,58 @@ app.add_middleware(
 # Exception Handlers
 # ===================
 
-
-@app.exception_handler(BLB3DException)
-async def blb3d_exception_handler(request: Request, exc: BLB3DException):
-    """Handle all custom BLB3D exceptions."""
+@app.exception_handler(FilaOpsException)
+async def filaops_exception_handler(request: Request, exc: FilaOpsException):
     logger.warning(
-        f"BLB3D Exception: {exc.error_code} - {exc.message}",
+        f"FilaOps Exception: {exc.error_code} - {exc.message}",
         extra={"error_code": exc.error_code, "details": exc.details, "path": request.url.path}
     )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=exc.to_dict(),
-    )
+    # Add timestamp to error response for consistency
+    error_dict = exc.to_dict()
+    error_dict["timestamp"] = datetime.utcnow().isoformat() + "Z"
+    return JSONResponse(status_code=exc.status_code, content=error_dict)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle Pydantic validation errors with cleaner format."""
     errors = []
     for error in exc.errors():
         field = ".".join(str(loc) for loc in error["loc"] if loc != "body")
-        errors.append({
-            "field": field,
-            "message": error["msg"],
-            "type": error["type"],
-        })
-
-    logger.warning(
-        f"Validation error on {request.url.path}",
-        extra={"errors": errors}
-    )
+        errors.append({"field": field, "message": error["msg"], "type": error["type"]})
+    logger.warning("Validation error on %s", request.url.path, extra={"errors": errors})
     return JSONResponse(
         status_code=422,
         content={
             "error": "VALIDATION_ERROR",
             "message": "Request validation failed",
             "details": {"errors": errors},
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         },
     )
 
 
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    """Handle SQLAlchemy database errors."""
-    # Log full error for debugging but don't expose to client
-    logger.error(
-        f"Database error on {request.url.path}: {str(exc)}",
-        exc_info=True
-    )
+    logger.error(f"Database error on {request.url.path}: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "error": "DATABASE_ERROR",
             "message": "A database error occurred. Please try again.",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         },
     )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """Catch-all handler for unexpected errors."""
-    # Log full stack trace for debugging
-    logger.error(
-        f"Unexpected error on {request.url.path}: {str(exc)}",
-        exc_info=True
-    )
+    logger.error(f"Unexpected error on {request.url.path}: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={
             "error": "INTERNAL_ERROR",
             "message": "An unexpected error occurred. Please try again later.",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         },
     )
 
@@ -239,25 +193,17 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Include API routes
 app.include_router(api_v1_router, prefix="/api/v1")
 
+
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "FilaOps ERP API",
-        "version": "1.0.0",
-        "status": "online"
-    }
+    return {"message": "FilaOps ERP API", "version": settings.VERSION, "status": "online"}
+
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {"status": "healthy"}
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8001,
-        reload=True
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=True)

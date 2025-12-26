@@ -114,7 +114,7 @@ async def list_categories(
     query = db.query(ItemCategory)
 
     if not include_inactive:
-        query = query.filter(ItemCategory.is_active == True)  # noqa: E712
+        query = query.filter(ItemCategory.is_active.is_(True))  # noqa: E712
 
     if parent_id is not None:
         query = query.filter(ItemCategory.parent_id == parent_id)
@@ -148,7 +148,7 @@ async def get_category_tree(
     """Get categories as a nested tree structure"""
     # Get all active categories
     categories = db.query(ItemCategory).filter(
-        ItemCategory.is_active == True
+        ItemCategory.is_active.is_(True)
     ).order_by(ItemCategory.sort_order, ItemCategory.name).all()
 
     # Build tree
@@ -316,7 +316,7 @@ async def delete_category(
     # Check for child categories
     children = db.query(ItemCategory).filter(
         ItemCategory.parent_id == category_id,
-        ItemCategory.is_active == True
+        ItemCategory.is_active.is_(True)
     ).count()
     if children > 0:
         raise HTTPException(
@@ -327,7 +327,7 @@ async def delete_category(
     # Check for items in this category
     items = db.query(Product).filter(
         Product.category_id == category_id,
-        Product.active == True
+        Product.active.is_(True)
     ).count()
     if items > 0:
         raise HTTPException(
@@ -370,7 +370,7 @@ async def list_items(
 
     # Filters
     if active_only:
-        query = query.filter(Product.active == True)  # noqa: E712
+        query = query.filter(Product.active.is_(True))  # noqa: E712
 
     if item_type:
         if item_type == "filament":
@@ -415,11 +415,22 @@ async def list_items(
             func.coalesce(func.sum(Inventory.allocated_quantity), 0).label("allocated"),
         ).filter(Inventory.product_id == item.id).first()
 
+        # STAR SCHEMA: Inventory stores GRAMS for materials, native unit for others
+        # No conversion needed - inventory is already in transaction unit
         on_hand = float(inv.on_hand) if inv else 0
         allocated = float(inv.allocated) if inv else 0
-        available = on_hand - allocated
+        
+        # Check if material for reorder point conversion
+        is_material = item.material_type_id is not None
         reorder_point = float(item.reorder_point) if item.reorder_point else None
-        item_needs_reorder = reorder_point is not None and on_hand <= reorder_point
+        if is_material and reorder_point:
+            # Reorder point is stored in product_unit (KG), convert to grams for display
+            reorder_point = reorder_point * 1000
+        
+        available = on_hand - allocated
+        # Only stocked items can "need reorder" - on_demand items are MRP-driven
+        is_stocked = item.stocking_policy == 'stocked'
+        item_needs_reorder = is_stocked and reorder_point is not None and on_hand <= reorder_point
 
         # Skip if needs_reorder filter is on and item doesn't need reorder
         if needs_reorder and not item_needs_reorder:
@@ -447,6 +458,7 @@ async def list_items(
             on_hand_qty=on_hand,
             available_qty=available,
             reorder_point=reorder_point,
+            stocking_policy=item.stocking_policy or "on_demand",
             needs_reorder=item_needs_reorder,
         ))
 
@@ -522,6 +534,7 @@ async def create_item(
         lead_time_days=request.lead_time_days,
         min_order_qty=request.min_order_qty,
         reorder_point=request.reorder_point,
+        stocking_policy=request.stocking_policy.value if request.stocking_policy else "on_demand",
         upc=request.upc,
         legacy_sku=request.legacy_sku,
         is_raw_material=request.is_raw_material or False,
@@ -552,11 +565,12 @@ async def create_material_item(
     It automatically:
     - Sets item_type='supply'
     - Sets procurement_type='buy'
-    - Sets unit='KG'
+    - Sets unit='G' (grams) - STAR SCHEMA design
     - Links material_type_id and color_id
     - Creates Inventory record
     
     The SKU is auto-generated as: MAT-{material_type_code}-{color_code}
+    Note: Costs are still tracked as $/KG, but quantities use grams.
     """
     from app.services.material_service import (
         create_material_product,
@@ -684,10 +698,10 @@ async def get_low_stock_items(
     Get items that are below their reorder point OR have shortages from active orders.
 
     Returns items where:
-    - available_quantity <= reorder_point (traditional low stock), OR
-    - net_shortage > 0 from MRP explosion of active sales orders (MRP shortages)
+    - stocking_policy='stocked' AND available_quantity <= reorder_point (proactive reordering), OR
+    - net_shortage > 0 from MRP explosion of active sales orders (reactive/MRP shortages)
 
-    - **include_zero_reorder**: Include items with reorder_point = 0 or NULL (default: False)
+    - **include_zero_reorder**: Include stocked items with reorder_point = 0 or NULL (default: False)
     - **include_mrp_shortages**: Include items with shortages from active orders (default: True)
     - **limit**: Maximum number of items to return
     """
@@ -695,12 +709,14 @@ async def get_low_stock_items(
 
     items_dict = {}  # product_id -> item data
 
-    # 1. Get items below reorder point (traditional low stock)
+    # 1. Get STOCKED items below reorder point (proactive low stock)
+    # Only items with stocking_policy='stocked' are considered for reorder point alerts
     # Exclude "make" items - those need Work Orders, not Purchase Orders
     query = db.query(Product, Inventory).outerjoin(
         Inventory, Product.id == Inventory.product_id
     ).filter(
-        Product.active == True,  # noqa: E712
+        Product.active.is_(True),  # noqa: E712
+        Product.stocking_policy == 'stocked',  # Only stocked items for reorder point alerts
         Product.reorder_point.isnot(None),
         or_(Product.procurement_type != 'make', Product.procurement_type.is_(None)),
     )
@@ -730,6 +746,7 @@ async def get_low_stock_items(
             "name": product.name,
             "item_type": product.item_type,
             "procurement_type": product.procurement_type or "buy",
+            "stocking_policy": product.stocking_policy or "on_demand",
             "unit": product.unit,
             "category_name": product.item_category.name if product.item_category else None,
             "on_hand_qty": on_hand,
@@ -861,6 +878,7 @@ async def get_low_stock_items(
                                 "name": product.name,
                                 "item_type": product.item_type,
                                 "procurement_type": product.procurement_type or "buy",
+                                "stocking_policy": product.stocking_policy or "on_demand",
                                 "unit": product.unit,
                                 "category_name": product.item_category.name if product.item_category else None,
                                 "on_hand_qty": on_hand,
@@ -958,6 +976,64 @@ async def update_item(
             if not category:
                 raise HTTPException(status_code=400, detail=f"Category {request.category_id} not found")
 
+    # Check if unit is changing - need to convert inventory quantities
+    old_unit = item.unit
+    if request.unit and request.unit.upper() != (old_unit or "").upper():
+        new_unit = request.unit.upper().strip()
+        old_unit_normalized = (old_unit or "EA").upper().strip()
+        
+        # Convert all inventory quantities to new unit
+        if old_unit_normalized != new_unit:
+            from app.services.uom_service import convert_quantity_safe
+            
+            # Get all inventory records for this product
+            inventory_records = db.query(Inventory).filter(
+                Inventory.product_id == item.id
+            ).all()
+            
+            if inventory_records:
+                # Check if conversion is possible
+                test_qty = Decimal("1")
+                converted_test, can_convert = convert_quantity_safe(
+                    db, test_qty, old_unit_normalized, new_unit
+                )
+                
+                if not can_convert:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Cannot change unit from {old_unit} to {new_unit}. "
+                            f"Units are incompatible. Existing inventory would be invalidated."
+                        )
+                    )
+                
+                # Convert all inventory quantities
+                for inv in inventory_records:
+                    if inv.on_hand_quantity and inv.on_hand_quantity > 0:
+                        converted_qty, success = convert_quantity_safe(
+                            db, inv.on_hand_quantity, old_unit_normalized, new_unit
+                        )
+                        if success:
+                            inv.on_hand_quantity = converted_qty
+                            logger.info(
+                                f"Converted inventory for {item.sku}: "
+                                f"{inv.on_hand_quantity} {old_unit} -> {converted_qty} {new_unit}"
+                            )
+                    
+                    if inv.allocated_quantity and inv.allocated_quantity > 0:
+                        converted_allocated, success = convert_quantity_safe(
+                            db, inv.allocated_quantity, old_unit_normalized, new_unit
+                        )
+                        if success:
+                            inv.allocated_quantity = converted_allocated
+                    
+                    inv.updated_at = datetime.utcnow()
+                
+                logger.info(
+                    f"Converted {len(inventory_records)} inventory records for {item.sku} "
+                    f"from {old_unit} to {new_unit}"
+                )
+
     # Update fields
     update_data = request.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -968,6 +1044,8 @@ async def update_item(
         if field == "procurement_type" and value:
             value = value.value if hasattr(value, "value") else value
         if field == "cost_method" and value:
+            value = value.value if hasattr(value, "value") else value
+        if field == "stocking_policy" and value:
             value = value.value if hasattr(value, "value") else value
         if field == "is_active":
             field = "active"
@@ -1010,7 +1088,7 @@ async def delete_item(
     # Check for active BOMs using this item
     bom_count = db.query(BOM).filter(
         BOM.product_id == item_id,
-        BOM.active == True
+        BOM.active.is_(True)
     ).count()
     if bom_count > 0:
         raise HTTPException(
@@ -1592,7 +1670,7 @@ def _calculate_item_cost(item: Product, db: Session) -> dict:
     # Check for active BOM (indicates manufactured item)
     bom = db.query(BOM).filter(
         BOM.product_id == item.id,
-        BOM.active == True
+        BOM.active.is_(True)
     ).first()
 
     if bom:
@@ -1606,7 +1684,7 @@ def _calculate_item_cost(item: Product, db: Session) -> dict:
         # Get active Routing cost
         routing = db.query(Routing).filter(
             Routing.product_id == item.id,
-            Routing.is_active == True
+            Routing.is_active.is_(True)
         ).first()
         if routing and routing.total_cost:
             routing_cost = float(routing.total_cost)
@@ -1652,7 +1730,7 @@ async def recost_all_items(
     - **category_id**: Filter by category (includes descendants)
     - **cost_source**: Filter by 'manufactured' (has BOM) or 'purchased' (no BOM)
     """
-    query = db.query(Product).filter(Product.active == True)  # noqa: E712
+    query = db.query(Product).filter(Product.active.is_(True))  # noqa: E712
 
     if item_type:
         query = query.filter(Product.item_type == item_type)
@@ -1784,7 +1862,7 @@ def _build_item_response(item: Product, db: Session) -> ItemResponse:
     allocated = float(inv.allocated) if inv else 0
 
     # Get BOM count
-    bom_count = db.query(BOM).filter(BOM.product_id == item.id, BOM.active == True).count()  # noqa: E712
+    bom_count = db.query(BOM).filter(BOM.product_id == item.id, BOM.active.is_(True)).count()  # noqa: E712
 
     return ItemResponse(
         id=item.id,

@@ -25,7 +25,7 @@ export default function RoutingEditor({
   const [showAddOperation, setShowAddOperation] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [selectedProductId, setSelectedProductId] = useState(productId || "");
-  const [productList, setProductList] = useState(products || []);
+  const [productList, _setProductList] = useState(products || []); // Updated via props
 
   const [newOperation, setNewOperation] = useState({
     work_center_id: "",
@@ -51,7 +51,7 @@ export default function RoutingEditor({
         setRouting(data);
         setOperations(data.operations || []);
       }
-    } catch (err) {
+    } catch {
       // Routing fetch failure - will show empty editor
     }
   }, [routingId, token]);
@@ -75,7 +75,7 @@ export default function RoutingEditor({
         setRouting(null);
         setOperations([]);
       }
-    } catch (err) {
+    } catch {
       // Routing fetch failure - will show empty editor
     }
   }, [selectedProductId, productId, token]);
@@ -92,7 +92,7 @@ export default function RoutingEditor({
         const data = await res.json();
         setWorkCenters(data || []);
       }
-    } catch (err) {
+    } catch {
       // Work centers fetch failure is non-critical - work center selector will be empty
     }
   }, [token]);
@@ -109,7 +109,7 @@ export default function RoutingEditor({
         const data = await res.json();
         setTemplates(data || []);
       }
-    } catch (err) {
+    } catch {
       // Templates fetch failure is non-critical - templates list will be empty
     }
   }, [token]);
@@ -525,8 +525,32 @@ export default function RoutingEditor({
                           key={index}
                           className="border-b border-gray-800 hover:bg-gray-800/50"
                         >
-                          <td className="border border-gray-700 p-2 text-white">
-                            {index + 1}
+                          <td className="border border-gray-700 p-2">
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={op.sequence || index + 1}
+                              onChange={(e) => {
+                                const newSequence = parseInt(e.target.value) || 1;
+                                updateOperation(index, "sequence", newSequence);
+                                // Auto-resequence other operations if needed
+                                const currentSeq = op.sequence || index + 1;
+                                if (newSequence !== currentSeq) {
+                                  operations.forEach((otherOp, otherIdx) => {
+                                    if (otherIdx !== index) {
+                                      const otherSeq = otherOp.sequence || otherIdx + 1;
+                                      if (otherSeq >= newSequence && otherSeq < currentSeq) {
+                                        updateOperation(otherIdx, "sequence", otherSeq + 1);
+                                      } else if (otherSeq <= newSequence && otherSeq > currentSeq) {
+                                        updateOperation(otherIdx, "sequence", otherSeq - 1);
+                                      }
+                                    }
+                                  });
+                                }
+                              }}
+                              className="w-16 text-center bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white"
+                            />
                           </td>
                           <td className="border border-gray-700 p-2">
                             <div>

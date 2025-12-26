@@ -7,6 +7,11 @@ from datetime import datetime
 
 from app.db.base import Base
 
+try:
+    from app.services import google_drive
+except Exception:
+    google_drive = None  # type: ignore
+
 
 class PurchaseOrder(Base):
     """Purchase Order header model"""
@@ -81,6 +86,9 @@ class PurchaseOrderLine(Base):
     # Quantities
     quantity_ordered = Column(Numeric(18, 4), nullable=False)
     quantity_received = Column(Numeric(18, 4), default=0, nullable=False)
+    
+    # Unit of Measure - the unit the item is purchased in (may differ from product's default unit)
+    purchase_unit = Column(String(20), nullable=True)  # e.g., 'G', 'KG', 'EA', 'LB'
 
     # Pricing
     unit_cost = Column(Numeric(18, 4), nullable=False)
@@ -99,3 +107,4 @@ class PurchaseOrderLine(Base):
 
     def __repr__(self):
         return f"<PurchaseOrderLine {self.line_number}: {self.quantity_ordered}>"
+

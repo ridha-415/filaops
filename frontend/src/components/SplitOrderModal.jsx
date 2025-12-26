@@ -68,8 +68,8 @@ export default function SplitOrderModal({ productionOrder, onClose, onSplit }) {
         const err = await res.json();
         toast.error(err.detail || "Failed to split order");
       }
-    } catch (err) {
-      toast.error(err.message || "Network error");
+    } catch (catchErr) {
+      toast.error(catchErr.message || "Network error");
     } finally {
       setSubmitting(false);
     }

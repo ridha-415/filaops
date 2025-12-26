@@ -19,9 +19,9 @@ class ProductCreate(BaseModel):
     sku: str
     name: str
     description: Optional[str] = None
-    category: Optional[str] = None
+    category_id: Optional[int] = None  # FK to ItemCategory
     unit: str = "EA"
-    cost: Optional[float] = None
+    standard_cost: Optional[float] = None  # Use standard_cost instead of legacy 'cost'
     selling_price: Optional[float] = None
     is_raw_material: bool = False
     active: bool = True
@@ -32,9 +32,9 @@ class ProductUpdate(BaseModel):
     sku: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
-    category: Optional[str] = None
+    category_id: Optional[int] = None  # FK to ItemCategory
     unit: Optional[str] = None
-    cost: Optional[float] = None
+    standard_cost: Optional[float] = None  # Use standard_cost instead of legacy 'cost'
     selling_price: Optional[float] = None
     is_raw_material: Optional[bool] = None
     active: Optional[bool] = None
@@ -70,6 +70,8 @@ async def list_products(
     category: Optional[str] = None,
     active_only: bool = True,
     search: Optional[str] = None,
+    has_bom: Optional[bool] = None,
+    procurement_type: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db)
@@ -80,6 +82,8 @@ async def list_products(
     - **category**: Filter by category (e.g., 'Finished Goods', 'Raw Materials')
     - **active_only**: Only show active products (default: True)
     - **search**: Search by SKU or name
+    - **has_bom**: Filter by whether product has a BOM (True/False)
+    - **procurement_type**: Filter by procurement type ('make', 'buy', 'make_or_buy')
     - **limit**: Max results (default: 50)
     - **offset**: Pagination offset (default: 0)
     """
@@ -89,10 +93,20 @@ async def list_products(
 
         # Apply filters
         if active_only:
-            query = query.filter(Product.active == True)  # noqa: E712
+            query = query.filter(Product.active.is_(True))  # noqa: E712
 
         if category:
-            query = query.filter(Product.category == category)
+            # Filter by category name through ItemCategory relationship
+            from app.models.item_category import ItemCategory
+            query = query.join(ItemCategory, Product.category_id == ItemCategory.id).filter(
+                ItemCategory.name.ilike(f"%{category}%")
+            )
+
+        if has_bom is not None:
+            query = query.filter(Product.has_bom == has_bom)  # noqa: E712
+
+        if procurement_type:
+            query = query.filter(Product.procurement_type == procurement_type)
 
         if search:
             search_pattern = f"%{search}%"
@@ -177,9 +191,9 @@ async def create_product(
             sku=request.sku,
             name=request.name,
             description=request.description,
-            category=request.category,
+            category_id=request.category_id,
             unit=request.unit,
-            cost=request.cost,
+            standard_cost=request.standard_cost,
             selling_price=request.selling_price,
             is_raw_material=request.is_raw_material,
             active=request.active,

@@ -21,8 +21,11 @@
 ## ⚠️ Before You Start
 
 1. **Backup your database** (recommended for production)
-   - Using SQL Server Management Studio: Right-click your database → Tasks → Backup
-   - Or use: `docker-compose exec db /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "YourPassword" -Q "BACKUP DATABASE FilaOps TO DISK='/var/opt/mssql/backup/FilaOps.bak'"`
+   ```bash
+   # PostgreSQL backup
+   pg_dump -U filaops_user filaops > filaops_backup_$(date +%Y%m%d).sql
+   ```
+   Or using pgAdmin: Right-click database → Backup
 
 2. **Note your current version**
    - Check in Settings → Version & Updates, or run: `git describe --tags`
@@ -31,9 +34,12 @@
 
 4. **Allow 5-10 minutes** for the upgrade process
 
+5. **Stop FilaOps** before upgrading
+   - Press `Ctrl+C` in both backend and frontend terminal windows
+
 ---
 
-## Quick Upgrade (Docker - Most Users)
+## Quick Upgrade (Native Installation)
 
 ### Step 1: Open Terminal/Command Prompt
 
@@ -55,19 +61,25 @@ cd ~/filaops
 # OR wherever you installed FilaOps
 ```
 
-**💡 Tip:** If you're not sure where FilaOps is installed, look for a folder containing `docker-compose.yml`
+**💡 Tip:** If you're not sure where FilaOps is installed, look for a folder containing `backend/` and `frontend/` subdirectories
 
 ### Step 3: Stop FilaOps
 
+**Stop the running services:**
+- In Terminal 1 (backend): Press `Ctrl+C`
+- In Terminal 2 (frontend): Press `Ctrl+C`
+
+**If running as a system service:**
 ```bash
-docker-compose down
+# Linux (systemd)
+sudo systemctl stop filaops-backend
+
+# Windows (NSSM)
+nssm stop FilaOpsBackend
+
+# All platforms (PM2 for frontend)
+pm2 stop filaops-frontend
 ```
-
-**Wait for:** All containers to stop (you'll see "Removed" messages)
-
-**❌ If you get an error:**
-- Make sure Docker Desktop is running (Windows/Mac)
-- Try: `docker ps` to see if containers are running
 
 ### Step 4: Get the Latest Code
 
@@ -93,381 +105,429 @@ git checkout vX.X.X
 - Download the latest release ZIP from: https://github.com/Blb3D/filaops/releases
 - Extract it to your FilaOps folder (replace old files)
 
-### Step 5: Rebuild Containers
-
-```bash
-docker-compose build --no-cache
-```
-
-**⏱️ This takes 5-10 minutes** - be patient! You'll see lots of text scrolling.
-
-**❌ If build fails:**
-- Make sure Docker Desktop has enough resources (Settings → Resources)
-- Try: `docker system prune -a` to free up space
-- Check error messages - they usually tell you what's wrong
-
-### Step 6: Start FilaOps
-
-```bash
-docker-compose up -d
-```
-
-**Wait 30 seconds** for services to start.
-
-**Check status:**
-```bash
-docker-compose ps
-```
-
-**✅ All services should show "Up" or "healthy"**
-
-**❌ If services won't start:**
-- Check logs: `docker-compose logs backend`
-- Common issue: Port already in use - see Troubleshooting below
-
-### Step 7: Run Database Updates
-
-```bash
-docker-compose exec backend alembic upgrade head
-```
-
-**✅ You should see:** "INFO [alembic.runtime.migration] Running upgrade..."
-
-**❌ If migration fails:**
-- Check database connection: `docker-compose logs db`
-- Make sure database container is running: `docker-compose ps`
-
-### Step 8: Clear Browser Cache
-
-**This is IMPORTANT!** Old JavaScript files can cause errors.
-
-**Chrome/Edge:**
-- Press `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac)
-- Or: Settings → Privacy → Clear browsing data → Cached images
-
-**Firefox:**
-- Press `Ctrl + Shift + Delete` → Check "Cache" → Clear Now
-
-**Safari:**
-- Press `Cmd + Option + E` to clear cache
-
-**Or:** Use Incognito/Private browsing mode to test
-
-### Step 9: Verify It Works
-
-1. **Open FilaOps** in your browser (usually http://localhost:5173)
-2. **Log in** with your admin account
-3. **Check Settings → Version & Updates** - should show new version
-4. **Try creating a test order** or viewing the dashboard
-
-**✅ Everything working?** You're done! 🎉
-
-**❌ Something broken?** See Troubleshooting section below
-
----
-
-## Production Deployment (C:\BLB3D_Production)
-
-**⚠️ IMPORTANT:** Test upgrades in development first!
-
-### Production Upgrade Steps
-
-```bash
-# 1. Navigate to PRODUCTION folder
-cd C:\BLB3D_Production
-
-# 2. Stop services
-docker-compose down
-
-# 3. Get latest code
-git fetch --tags
-
-# 4. Find latest version
-git tag --sort=-v:refname | head -1
-
-# 5. Checkout latest version (replace vX.X.X with version from step 4)
-git checkout vX.X.X
-
-# 4. Rebuild
-docker-compose build --no-cache
-
-# 5. Start services
-docker-compose up -d
-
-# 6. Run migrations
-docker-compose exec backend alembic upgrade head
-
-# 7. Verify
-docker-compose ps
-docker-compose logs backend
-```
-
-**Production URLs:**
-- Frontend: http://localhost:7000
-- Backend: http://localhost:10000
-
----
-
-## Troubleshooting
-
-### "Port already in use"
-
-**Problem:** Another program is using port 5173 or 8000
-
-**Solution:**
-```bash
-# Windows - Find what's using the port
-netstat -ano | findstr :5173
-
-# Kill the process (replace PID with number from above)
-taskkill /PID <PID> /F
-
-# Or change FilaOps port in docker-compose.yml
-# Change "5173:80" to "8080:80" (or any free port)
-```
-
-### "Cannot connect to Docker daemon"
-
-**Problem:** Docker Desktop isn't running
-
-**Solution:**
-- **Windows/Mac:** Open Docker Desktop and wait for it to start (whale icon in system tray)
-- **Linux:** `sudo systemctl start docker`
-
-### "Database connection failed"
-
-**Problem:** Database container isn't ready
-
-**Solution:**
-```bash
-# Wait 30 seconds, then check database logs
-docker-compose logs db
-
-# Look for: "SQL Server is now ready for client connections"
-# If you see errors, restart database:
-docker-compose restart db
-```
-
-### "ModuleNotFoundError" or "Cannot find module"
-
-**Problem:** Old JavaScript files cached in browser
-
-**Solution:**
-- **Hard refresh:** `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac)
-- **Or clear browser cache completely**
-- **Or use incognito/private mode**
-
-### "Migration failed" or "Alembic error"
-
-**Problem:** Database migration conflict
-
-**Solution:**
-```bash
-# Check current migration status
-docker-compose exec backend alembic current
-
-# View migration history
-docker-compose exec backend alembic history
-
-# If stuck, check database logs
-docker-compose logs db
-```
-
-### "Container keeps restarting"
-
-**Problem:** Container crashes on startup
-
-**Solution:**
-```bash
-# Check what's wrong
-docker-compose logs backend
-docker-compose logs frontend
-
-# Common causes:
-# - Database not ready (wait 30 seconds)
-# - Missing .env file
-# - Port conflict
-```
-
-### "git: command not found"
-
-**Problem:** Git isn't installed
-
-**Solution:**
-- **Windows/Mac:** Download from https://git-scm.com/downloads
-- **Or:** Download release ZIP from GitHub instead of using git
-
-### "Permission denied" (Linux/Mac)
-
-**Problem:** Need sudo permissions
-
-**Solution:**
-```bash
-# Add your user to docker group (Linux)
-sudo usermod -aG docker $USER
-# Log out and back in
-
-# Or use sudo (not recommended for production)
-sudo docker-compose up -d
-```
-
----
-
-## Manual Installation (Without Docker)
-
-If you're running backend and frontend separately:
-
-### Backend Update
+### Step 5: Update Backend Dependencies
 
 ```bash
 cd backend
 
 # Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
+source venv/bin/activate  # Mac/Linux
+.\venv\Scripts\activate   # Windows
 
-# Update dependencies
+# Update Python packages
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# Run migrations
+# Run database migrations (CRITICAL - don't skip!)
 alembic upgrade head
-
-# Restart backend
-# (Stop current process, then restart)
-uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Frontend Update
+**✅ Look for:** "Running upgrade..." messages - this means migrations are applying
+
+**❌ If you get migration errors:**
+- Check your DATABASE_URL in `backend/.env`
+- Make sure PostgreSQL is running
+- See "Troubleshooting" section below
+
+### Step 6: Update Frontend Dependencies
+
+**Open a new terminal:**
 
 ```bash
 cd frontend
 
-# Update dependencies
+# Update Node packages
 npm install
 
-# Rebuild
+# Optional: Rebuild frontend (if not running dev mode)
 npm run build
-
-# Restart frontend server
-# (Stop current process, then restart)
-npm run dev  # For development
-# OR serve the dist/ folder with nginx/apache for production
 ```
+
+**💡 Tip:** If you're running in development mode (`npm run dev`), you don't need to rebuild - hot reload will handle it
+
+### Step 7: Start FilaOps
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+source venv/bin/activate  # Mac/Linux
+.\venv\Scripts\activate   # Windows
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+**Or restart services if running as a system service:**
+```bash
+# Linux (systemd)
+sudo systemctl start filaops-backend
+
+# Windows (NSSM)
+nssm start FilaOpsBackend
+
+# All platforms (PM2 for frontend)
+pm2 restart filaops-frontend
+```
+
+### Step 8: Verify Upgrade
+
+1. Open your browser to http://localhost:5174
+2. Go to **Settings → Version & Updates**
+3. Confirm the version matches what you installed
+4. Test basic functionality:
+   - View orders list
+   - Check dashboard loads
+   - Verify inventory displays
+
+**✅ Success!** Your FilaOps is now upgraded!
 
 ---
 
-## Rollback (Go Back to Previous Version)
+## Upgrade for Production Deployments
 
-If something goes wrong, you can rollback:
+### Additional Steps for Production
+
+1. **Test in staging first** (if you have a staging environment)
+
+2. **Announce downtime** to users
+
+3. **Run backup:**
+   ```bash
+   pg_dump -U filaops_user filaops > filaops_backup_$(date +%Y%m%d_%H%M%S).sql
+   ```
+
+4. **Stop services:**
+   ```bash
+   # Linux
+   sudo systemctl stop filaops-backend
+   pm2 stop filaops-frontend
+
+   # Windows
+   nssm stop FilaOpsBackend
+   pm2 stop filaops-frontend
+   ```
+
+5. **Get latest code and update dependencies** (Steps 4-6 above)
+
+6. **Build production frontend:**
+   ```bash
+   cd frontend
+   npm run build
+   ```
+
+7. **Restart services:**
+   ```bash
+   # Linux
+   sudo systemctl start filaops-backend
+   pm2 restart filaops-frontend
+
+   # Windows
+   nssm start FilaOpsBackend
+   pm2 restart filaops-frontend
+   ```
+
+8. **Monitor logs for errors:**
+   ```bash
+   # Linux backend logs
+   sudo journalctl -u filaops-backend -f
+
+   # PM2 frontend logs
+   pm2 logs filaops-frontend
+
+   # Or check backend logs directly
+   cd backend
+   tail -f logs/filaops.log
+   ```
+
+9. **Verify all features** before announcing service is back
+
+---
+
+## Downgrading (If Needed)
+
+If the new version has issues, you can rollback:
+
+### Step 1: Stop FilaOps
 
 ```bash
-# 1. Stop services
-docker-compose down
-
-# 2. Find your previous version
-git tag --sort=-v:refname  # Lists all versions, newest first
-
-# 3. Go back to previous version (replace vX.X.X with your previous version)
-git checkout vX.X.X
-
-# 3. Rollback database migrations (if needed)
-docker-compose exec backend alembic downgrade -1
-# Repeat for each migration you want to undo
-
-# 4. Rebuild and restart
-docker-compose build
-docker-compose up -d
+# Stop backend and frontend (Ctrl+C in terminals, or stop services)
 ```
 
-**⚠️ Warning:** Rollback may cause data loss if new features were used. Always backup first!
+### Step 2: Checkout Previous Version
+
+```bash
+# See all versions
+git tag --sort=-v:refname
+
+# Checkout your previous version (replace vX.Y.Z)
+git checkout vX.Y.Z
+```
+
+### Step 3: Rollback Database (IMPORTANT!)
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Find the migration revision for your previous version
+alembic history
+
+# Downgrade to that revision (replace abc123)
+alembic downgrade abc123
+```
+
+**⚠️ WARNING:** Downgrading may cause data loss if the new version added tables/columns!
+
+### Step 4: Reinstall Dependencies
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+
+# Frontend
+cd frontend
+npm install
+```
+
+### Step 5: Restart FilaOps
+
+Follow Step 7 from the upgrade guide above.
 
 ---
 
-## What Changed in This Version?
+## Troubleshooting
 
-**Always check the release notes for your specific version!**
+### Issue: "Migration failed" or "alembic.util.exc.CommandError"
 
-1. Go to: https://github.com/Blb3D/filaops/releases
-2. Find the version you're upgrading to
-3. Read the release notes for:
-   - New features
-   - Bug fixes
-   - Database migrations required
-   - Breaking changes
-   - Upgrade notes
+**Cause:** Database migration issue
 
-**Common changes:**
-- New features and improvements
-- Bug fixes
-- Database schema updates (migrations)
-- Security updates
+**Solution:**
+```bash
+cd backend
+source venv/bin/activate
+
+# Check current revision
+alembic current
+
+# Show migration history
+alembic history
+
+# Try upgrading one migration at a time
+alembic upgrade +1
+
+# If stuck, check backend logs for specific error
+```
+
+### Issue: "Module not found" errors
+
+**Cause:** Python packages not installed or virtual environment not activated
+
+**Solution:**
+```bash
+cd backend
+source venv/bin/activate  # IMPORTANT!
+pip install -r requirements.txt
+```
+
+### Issue: Frontend won't start after upgrade
+
+**Cause:** Node modules need updating or cache issues
+
+**Solution:**
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+### Issue: Database connection failed after upgrade
+
+**Cause:** DATABASE_URL might be incorrect or PostgreSQL not running
+
+**Solution:**
+```bash
+# Check PostgreSQL is running
+# Windows: Check Services app
+# Mac: brew services list
+# Linux: sudo systemctl status postgresql
+
+# Verify DATABASE_URL in backend/.env
+cat backend/.env | grep DATABASE_URL
+
+# Test connection manually
+psql -U filaops_user -d filaops
+```
+
+### Issue: "Could not find migration" errors
+
+**Cause:** Database is ahead of code (happens when downgrading)
+
+**Solution:**
+```bash
+cd backend
+source venv/bin/activate
+
+# Stamp database with current code's revision
+alembic stamp head
+
+# Then try upgrading again
+alembic upgrade head
+```
+
+### Issue: Changes not appearing after upgrade
+
+**Cause:** Browser cache or old build
+
+**Solution:**
+1. **Hard refresh:** Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
+2. **Clear browser cache** for localhost
+3. **Rebuild frontend:**
+   ```bash
+   cd frontend
+   npm run build
+   ```
+
+### Issue: Backend won't start - "Port already in use"
+
+**Cause:** Old backend process still running
+
+**Solution:**
+```bash
+# Find process using port 8000
+# Windows:
+netstat -ano | findstr :8000
+
+# Mac/Linux:
+lsof -i :8000
+
+# Kill the process (replace PID with actual process ID)
+# Windows:
+taskkill /PID <PID> /F
+
+# Mac/Linux:
+kill -9 <PID>
+```
+
+---
+
+## Version-Specific Upgrade Notes
+
+### Upgrading to v1.6.0
+
+- **Breaking changes:** None
+- **New features:** Material spool tracking, UOM conversion
+- **Database changes:** New tables for spools and UOM
+- **Action required:** None (migrations handle it)
+
+### Upgrading to v1.5.0
+
+- **Breaking changes:** None
+- **New features:** Enhanced purchase order system
+- **Database changes:** New fields in purchase_orders table
+- **Action required:** None (migrations handle it)
+
+### Upgrading from Docker to Native Installation
+
+If you previously used Docker and want to migrate to native installation:
+
+1. **Export your database:**
+   ```bash
+   # From Docker
+   docker-compose exec db pg_dump -U filaops filaops > database_export.sql
+   ```
+
+2. **Install PostgreSQL natively** (see INSTALL.md)
+
+3. **Import your database:**
+   ```bash
+   psql -U filaops_user -d filaops < database_export.sql
+   ```
+
+4. **Follow native installation guide** (INSTALL.md)
+
+5. **Update configuration:**
+   - Copy `.env` settings from Docker to `backend/.env`
+   - Update DATABASE_URL to point to native PostgreSQL
+
+---
+
+## FAQ
+
+### Q: Do I need to stop FilaOps to upgrade?
+
+**A:** Yes, always stop FilaOps before upgrading to avoid file conflicts and database issues.
+
+### Q: How long does an upgrade take?
+
+**A:** Usually 5-10 minutes. Most time is spent downloading dependencies.
+
+### Q: Can I skip versions?
+
+**A:** Yes! You can upgrade directly from v1.0.0 to v1.6.0. Alembic migrations will run in order automatically.
+
+### Q: Will I lose data when upgrading?
+
+**A:** No, upgrades preserve your data. Database migrations add new tables/columns without deleting existing data. But always backup first!
+
+### Q: Can I upgrade while users are using the system?
+
+**A:** Not recommended. Stop FilaOps first to prevent database corruption. For production, schedule maintenance windows.
+
+### Q: What if the upgrade fails?
+
+**A:** Restore from your database backup and downgrade to the previous version (see "Downgrading" section).
+
+### Q: How do I know which migrations ran?
+
+**A:** Check migration history:
+```bash
+cd backend
+source venv/bin/activate
+alembic history
+alembic current  # Shows current revision
+```
 
 ---
 
 ## Getting Help
 
-**Still stuck?** We're here to help!
+**Still having issues?**
 
-1. **Check the logs:**
-   ```bash
-   docker-compose logs backend
-   docker-compose logs frontend
-   ```
-
-2. **Search existing issues:**
-   - GitHub Issues: https://github.com/Blb3D/filaops/issues
-   - GitHub Discussions: https://github.com/Blb3D/filaops/discussions
-
-3. **Ask for help:**
-   - Create a new GitHub issue (include error messages and logs)
-   - Post in GitHub Discussions
-   - Join Discord: https://discord.gg/FAhxySnRwa
-
-**When asking for help, include:**
-- Your current version: `git describe --tags`
-- Operating system (Windows/Mac/Linux)
-- Docker version: `docker --version`
-- Error messages from logs
-- What step you're stuck on
+1. Check the [Troubleshooting Guide](./TROUBLESHOOTING.md)
+2. Search [GitHub Issues](https://github.com/Blb3D/filaops/issues)
+3. Ask in [GitHub Discussions](https://github.com/Blb3D/filaops/discussions)
+4. Open a new issue with:
+   - Your current version
+   - Version you're trying to upgrade to
+   - Error messages (copy/paste full error)
+   - Output of `alembic current` and `alembic history`
 
 ---
 
-## Quick Reference
+## Keeping FilaOps Updated
 
-**Essential Commands:**
+### Enable Update Notifications
 
-```bash
-# Check what's running
-docker-compose ps
+FilaOps checks for updates automatically:
 
-# View logs
-docker-compose logs backend
-docker-compose logs frontend
+1. Go to **Settings → Version & Updates**
+2. Enable **"Check for updates on startup"**
+3. You'll see a notification when a new version is available
 
-# Restart a service
-docker-compose restart backend
+### Subscribe to Releases
 
-# Stop everything
-docker-compose down
+Get notified of new releases:
 
-# Start everything
-docker-compose up -d
-
-# Check version
-git describe --tags
-```
-
-**Common Ports:**
-
-| Service | Default Port |
-|---------|-------------|
-| Frontend | 5173 |
-| Backend | 8000 |
-| Database | 1433 |
-| Redis | 6379 |
+1. Go to https://github.com/Blb3D/filaops
+2. Click **Watch → Custom → Releases**
+3. You'll get an email when new versions are released
 
 ---
 
-**That's it!** If you followed all steps and everything works, you're successfully upgraded! 🎉
+*FilaOps - Keeping Your 3D Print Farm Running Smoothly*
