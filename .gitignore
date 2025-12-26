@@ -370,4 +370,13 @@ backend/GCS_SETUP.md
 
 # Internal metrics tracking (private business data)
 docs/metrics/
+
+# Robot Army - Internal Testing Framework (DO NOT COMMIT)
+# Keep this internal until ready for separate open-source release
+agents/
+
+# Internal team briefings and planning
+TEAM_BRIEFING.md
+MARCHING_ORDERS.md
+
 .fake

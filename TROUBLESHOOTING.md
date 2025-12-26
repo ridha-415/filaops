@@ -4,6 +4,110 @@ Common issues and solutions for FilaOps installation and operation.
 
 ---
 
+## Docker Issues
+
+### "Port already in use" when starting containers
+
+**Problem:** Docker can't bind to port 5173, 8000, or 5432.
+
+**Solutions:**
+
+1. **Find what's using the port:**
+   - **Windows:** `netstat -ano | findstr :8000`
+   - **Mac/Linux:** `lsof -i :8000`
+
+2. **Stop the conflicting application** or change ports in `docker-compose.yml`:
+   ```yaml
+   ports:
+     - "8001:8000"  # Change left number (host port)
+   ```
+
+---
+
+### "Cannot connect to Docker daemon"
+
+**Problem:** Docker Desktop isn't running.
+
+**Solution:** Start Docker Desktop, wait for it to fully initialize (whale icon stops animating), then retry.
+
+---
+
+### Backend container keeps restarting
+
+**Problem:** Backend exits immediately after starting.
+
+**Check logs:**
+```bash
+docker-compose logs backend
+```
+
+**Common causes:**
+1. Database not ready (wait 30 seconds, containers have health checks)
+2. Wrong `DB_PASSWORD` in `.env` file
+3. Database container failed - check `docker-compose logs db`
+
+**Solution:**
+```bash
+# Restart everything
+docker-compose down
+docker-compose up --build
+```
+
+---
+
+### "FATAL: password authentication failed" in Docker
+
+**Problem:** PostgreSQL was initialized with a different password than what's in `.env`.
+
+**Solution (fresh start - deletes all data):**
+```bash
+docker-compose down -v
+docker-compose up --build
+```
+
+> ⚠️ The `-v` flag removes volumes including your database. Only use for fresh installs.
+
+---
+
+### Docker build fails with "no space left on device"
+
+**Problem:** Docker has run out of disk space.
+
+**Solution:**
+```bash
+# Clean up unused Docker resources
+docker system prune -a
+
+# Also remove unused volumes (careful!)
+docker volume prune
+```
+
+---
+
+### Changes to code aren't reflected in Docker
+
+**Problem:** Docker cached the old image.
+
+**Solution:**
+```bash
+docker-compose build --no-cache
+docker-compose up
+```
+
+---
+
+### How to backup Docker database
+
+```bash
+# Create backup
+docker-compose exec db pg_dump -U postgres filaops > backup_$(date +%Y%m%d).sql
+
+# Restore from backup
+docker-compose exec -T db psql -U postgres filaops < backup_20251226.sql
+```
+
+---
+
 ## PostgreSQL Database Issues
 
 ### "Database connection failed"
@@ -46,7 +150,7 @@ Common issues and solutions for FilaOps installation and operation.
 
 ---
 
-### "Port 5173 already in use" or "Port 8001 already in use"
+### "Port 5173 already in use" or "Port 8000 already in use"
 
 **Problem:** Another application is using the port FilaOps needs.
 
@@ -54,8 +158,8 @@ Common issues and solutions for FilaOps installation and operation.
 
 **Option 1: Stop the conflicting application**
 1. Find what's using the port:
-   - **Windows:** `netstat -ano | findstr :5173` or `netstat -ano | findstr :8001`
-   - **Mac/Linux:** `lsof -i :5173` or `lsof -i :8001`
+   - **Windows:** `netstat -ano | findstr :5173` or `netstat -ano | findstr :8000`
+   - **Mac/Linux:** `lsof -i :5173` or `lsof -i :8000`
 2. Stop that application or change its port
 
 **Option 2: Change FilaOps ports**
@@ -168,18 +272,18 @@ Common issues and solutions for FilaOps installation and operation.
 
 **Solutions:**
 
-1. **Find what's using port 8001:**
-   - **Windows:** `netstat -ano | findstr :8001`
-   - **Mac/Linux:** `lsof -i :8001`
+1. **Find what's using port 8000:**
+   - **Windows:** `netstat -ano | findstr :8000`
+   - **Mac/Linux:** `lsof -i :8000`
 
 2. **Stop the conflicting application** or use a different port:
    ```bash
-   python -m uvicorn app.main:app --reload --port 8001
+   python -m uvicorn app.main:app --reload --port 8010
    ```
 
 3. **Update frontend `.env`:**
    ```
-   VITE_API_URL=http://localhost:8001
+   VITE_API_URL=http://localhost:8010
    ```
 
 ---
@@ -226,7 +330,7 @@ Common issues and solutions for FilaOps installation and operation.
 
 1. **Check backend is running:**
    - Check terminal running `uvicorn` (should show "Uvicorn running on http://...")
-   - Verify backend is accessible: `curl http://localhost:8001/health`
+   - Verify backend is accessible: `curl http://localhost:8000/health`
 
 2. **Check API URL:**
    - Open browser console (F12)
@@ -234,7 +338,7 @@ Common issues and solutions for FilaOps installation and operation.
    - Verify `VITE_API_URL` in frontend `.env` matches backend URL
 
 3. **Test backend directly:**
-   - Open http://localhost:8001/docs
+   - Open http://localhost:8000/docs
    - Should see FastAPI documentation
    - If not, backend isn't running
 
@@ -468,7 +572,7 @@ This removes the database and starts fresh. The setup wizard will appear.
 
 2. **Update your `.env` file:**
    ```
-   VITE_API_URL=http://192.168.1.100:8001
+   VITE_API_URL=http://192.168.1.100:8000
    FRONTEND_URL=http://192.168.1.100:5173
    ```
    Replace `192.168.1.100` with your actual server IP.
@@ -493,7 +597,7 @@ Vite (the frontend build tool) bakes environment variables starting with `VITE_`
 
 ### API works in browser but frontend can't connect
 
-**Problem:** You can open `http://192.168.1.100:8001` directly and see the API response, but the frontend shows connection errors.
+**Problem:** You can open `http://192.168.1.100:8000` directly and see the API response, but the frontend shows connection errors.
 
 **Cause:** CORS (Cross-Origin Resource Sharing) is blocking the frontend.
 
@@ -510,7 +614,7 @@ Then restart the backend:
 ```bash
 # Stop the backend (Ctrl+C) and restart
 cd backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ---

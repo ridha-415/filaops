@@ -79,13 +79,13 @@ if (-not $fastApiCheck) {
 # Start the backend server
 Push-Location $backendDir
 try {
-    Write-Host "`n[backend] Starting server at: http://localhost:8001" -ForegroundColor Green
-    Write-Host "[backend] API docs at: http://localhost:8001/docs" -ForegroundColor Green
+    Write-Host "`n[backend] Starting server at: http://localhost:8000" -ForegroundColor Green
+    Write-Host "[backend] API docs at: http://localhost:8000/docs" -ForegroundColor Green
     Write-Host "[backend] Press Ctrl+C to stop`n" -ForegroundColor Yellow
     
     # Activate venv and start uvicorn
     & $venvActivate
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "`n[backend] Server stopped with exit code: $LASTEXITCODE" -ForegroundColor Red
@@ -101,5 +101,6 @@ catch {
 finally {
     Pop-Location
 }
+
 
 

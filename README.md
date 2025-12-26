@@ -25,12 +25,27 @@ FilaOps was built by someone who runs a print farm and got tired of spreadsheets
 
 ## Quick Start
 
-Choose your platform for step-by-step setup instructions:
+Choose your preferred installation method:
 
-- **[Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows installation guide
-- **[macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS, Linux, and SSH setup guide
+### 🐳 Docker (Recommended for Quick Start)
 
-**Prerequisites:** Python 3.11+, PostgreSQL 16+, Node.js 18+
+```bash
+git clone https://github.com/Blb3D/filaops.git
+cd filaops
+cp .env.example .env
+docker-compose up --build
+```
+
+Open http://localhost:5173 — done! See **[Docker Setup Guide](FilaOps_Zero-to-Running_Docker.md)** for details.
+
+### 💻 Native Installation
+
+For development or if you prefer running services directly:
+
+| Platform | Guide | Prerequisites |
+|----------|-------|---------------|
+| **Windows** | [Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
+| **macOS/Linux** | [macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
 
 After setup, open http://localhost:5173 — the **Setup Wizard** will guide you through creating your admin account.
 
@@ -157,7 +172,7 @@ See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)**
 cd backend
 pip install -r requirements.txt
 # Create .env file with PostgreSQL connection details
-python -m uvicorn app.main:app --reload --port 8001
+python -m uvicorn app.main:app --reload --port 8000
 
 # Frontend (separate terminal)
 cd frontend
@@ -165,7 +180,7 @@ npm install
 npm run dev
 ```
 
-- API docs: http://localhost:8001/docs
+- API docs: http://localhost:8000/docs
 - Admin UI: http://localhost:5173
 
 See **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** or **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** for complete setup instructions.

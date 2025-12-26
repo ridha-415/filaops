@@ -1,9 +1,9 @@
-# path: backend/app/main.py
 """
 FilaOps ERP - Main FastAPI Application
 """
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,8 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 
-# NOTE: slowapi is optional now
-from app.core.limiter import apply_rate_limiting  # <- drop-in optional limiter
+from app.core.limiter import apply_rate_limiting
 from app.api.v1 import router as api_v1_router
 from app.core.config import settings
 from app.exceptions import FilaOpsException
@@ -22,6 +21,15 @@ from app.logging_config import setup_logging, get_logger
 # Setup structured logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn="https://25adcc072579ef98fbb6b54096aca34f@o4510598139478016.ingest.us.sentry.io/4510598147473408",
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+    environment=getattr(settings, "ENVIRONMENT", "development"),
+    release=f"filaops@{settings.VERSION}",
+)
 
 
 # ===================
@@ -188,7 +196,7 @@ app.include_router(api_v1_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
-    return {"message": "FilaOps ERP API", "version": "1.0.0", "status": "online"}
+    return {"message": "FilaOps ERP API", "version": settings.VERSION, "status": "online"}
 
 
 @app.get("/health")

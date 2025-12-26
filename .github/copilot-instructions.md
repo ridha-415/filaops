@@ -46,8 +46,8 @@ Development and production use **native server processes**:
 
 |             | **Development**      | **Production**       |
 | ----------- | -------------------- | -------------------- |
-| Frontend    | localhost:5174       | localhost:5173       |
-| Backend     | localhost:8001       | localhost:8000       |
+| Frontend    | localhost:5173       | localhost:5173       |
+| Backend     | localhost:8000       | localhost:8000       |
 | Database    | localhost:5432       | localhost:5432       |
 | PostgreSQL  | filaops_db           | filaops_prod         |
 

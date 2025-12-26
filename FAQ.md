@@ -8,21 +8,30 @@ Common questions about FilaOps from print farm owners and users.
 
 ### How do I install FilaOps?
 
-FilaOps uses a manual installation process with PostgreSQL. You'll need:
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 16+
+FilaOps offers two installation methods:
 
-**See:** 
-- **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows setup guide
-- **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS/Linux setup guide
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Overview and troubleshooting
+**Option 1: Docker (Recommended for quick start)**
+```bash
+git clone https://github.com/Blb3D/filaops.git
+cd filaops
+cp .env.example .env
+docker-compose up --build
+```
+Only requires Docker Desktop. See **[Docker Setup Guide](FilaOps_Zero-to-Running_Docker.md)**.
+
+**Option 2: Native Installation**
+- **[Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md)**
+- **[macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)**
+
+Native installation requires Python 3.11+, Node.js 18+, and PostgreSQL 16+.
 
 ---
 
 ### Do I need to install Python, Node.js, or PostgreSQL?
 
-Yes. You'll need:
+**If using Docker:** No! Docker handles everything.
+
+**If using native installation:** Yes. You'll need:
 - Python 3.11+
 - Node.js 18+
 - PostgreSQL 16+
@@ -317,17 +326,28 @@ Yes! FilaOps can run on:
 - Cloud server (AWS, DigitalOcean, etc.)
 - VPS
 
+**Docker is recommended for servers** - it simplifies deployment and updates.
+
 **Note:** For production use, consider:
-- Setting up SSL/HTTPS
+- Setting up SSL/HTTPS (use a reverse proxy like nginx or Traefik)
 - Regular database backups
 - Firewall configuration
+- Docker resource limits
 
 ---
 
 ### How do I backup my data?
 
-Use PostgreSQL backup tools:
+**If using Docker:**
+```bash
+# Backup
+docker-compose exec db pg_dump -U postgres filaops > filaops_backup.sql
 
+# Restore
+docker-compose exec -T db psql -U postgres filaops < filaops_backup.sql
+```
+
+**If using native installation:**
 ```bash
 # Backup database
 pg_dump -U postgres -d filaops -F c -f filaops_backup.dump
@@ -359,7 +379,7 @@ Or use pgAdmin or other PostgreSQL management tools for GUI-based backups.
 
 ### I'm getting "Cannot connect to server" errors
 
-1. Check if backend is running (port 8001)
+1. Check if backend is running (port 8000)
 2. Check if frontend is running (port 5173)
 3. Verify PostgreSQL is running and accessible
 4. Check your `.env` file has correct database credentials
@@ -383,9 +403,9 @@ Common issues:
 ### The dashboard shows "Failed to fetch"
 
 This usually means:
-1. Backend server isn't running (check port 8001)
+1. Backend server isn't running (check port 8000)
 2. Database connection failed (verify PostgreSQL is running)
-3. Port conflict (something else using port 8001 or 5173)
+3. Port conflict (something else using port 8000 or 5173)
 4. CORS configuration issue (check backend CORS settings)
 
 **See:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions.

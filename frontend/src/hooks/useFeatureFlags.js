@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config/api';
 
 export const useFeatureFlags = () => {
   const [tier, setTier] = useState('open');
@@ -15,7 +16,7 @@ export const useFeatureFlags = () => {
           return;
         }
 
-        const response = await fetch('http://127.0.0.1:8001/api/v1/features/current', {
+        const response = await fetch(`${API_URL}/api/v1/features/current`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

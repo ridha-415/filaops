@@ -93,7 +93,7 @@ Another application is using that port. Either:
 - Review backend logs for specific error messages
 
 ### "Frontend can't connect to backend"
-- Verify backend is running on http://localhost:8001
+- Verify backend is running on http://localhost:8000
 - Check CORS settings in backend configuration
 - Ensure frontend `.env` or configuration points to correct API URL
 

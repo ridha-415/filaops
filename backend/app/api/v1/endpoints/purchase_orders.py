@@ -695,15 +695,33 @@ async def receive_purchase_order(
             )
             
             # Convert cost_per_unit: cost per purchase_unit -> cost per product_unit
-            # EXCEPTION: For materials, keep cost as $/KG (industry standard)
-            # even though quantity is stored in grams
+            # For materials: Convert to $/G since quantity is stored in grams
+            # This ensures COGS calculations work correctly: cost_per_unit ($/G) * quantity (G)
             if is_mat:
-                # Materials: Keep cost as $/KG (don't convert to $/G)
-                # The transaction quantity will be in grams, but cost stays per-KG
-                cost_per_unit_for_inventory = line.unit_cost  # Keep as $/KG
-                logger.info(
-                    f"Material cost: Keeping as ${line.unit_cost}/KG (quantity will be stored in grams)"
-                )
+                # Materials: Convert cost from $/purchase_unit to $/G
+                if purchase_unit == "KG":
+                    # Purchased in KG, storing in G: divide cost by 1000
+                    cost_per_unit_for_inventory = line.unit_cost / Decimal("1000")
+                    logger.info(
+                        f"Material cost conversion: ${line.unit_cost}/KG → "
+                        f"${cost_per_unit_for_inventory}/G"
+                    )
+                else:
+                    # Purchased in other units (G, LB, OZ, etc.) - use conversion factor
+                    try:
+                        quantity_conversion_factor = get_conversion_factor(db, purchase_unit, "G")
+                        cost_conversion_factor = Decimal("1") / quantity_conversion_factor
+                        cost_per_unit_for_inventory = line.unit_cost * cost_conversion_factor
+                        logger.info(
+                            f"Material cost conversion: ${line.unit_cost}/{purchase_unit} → "
+                            f"${cost_per_unit_for_inventory}/G (factor: {cost_conversion_factor})"
+                        )
+                    except Exception as e:
+                        logger.error(f"Cost conversion failed for material: {e}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot convert cost from {purchase_unit} to G"
+                        )
             else:
                 # Non-materials: Convert cost per purchase_unit -> cost per product_unit
                 # Cost conversion factor is the inverse of quantity conversion factor
@@ -1216,3 +1234,4 @@ async def add_po_event(
         metadata_value=event.metadata_value,
         created_at=event.created_at,
     )
+

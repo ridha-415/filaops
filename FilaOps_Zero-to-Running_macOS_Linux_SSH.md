@@ -2,8 +2,8 @@
 
 This guide gets a brand-new developer from **nothing installed** → **backend running** → **frontend UI running** — so they can *click around like a human*, not just hit APIs.
 
-- Backend API: `http://localhost:8001`
-- Health check: `http://localhost:8001/health`
+- Backend API: `http://localhost:8000`
+- Health check: `http://localhost:8000/health`
 - Frontend UI (typical):
   - Vite: `http://localhost:5173`
   - Next.js / CRA: `http://localhost:3000`
@@ -119,12 +119,12 @@ pip install -r requirements.txt
 alembic upgrade head
 
 # Start the backend server
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Verify in a **new terminal**:
 ```bash
-curl -fsS http://127.0.0.1:8001/health && echo
+curl -fsS http://127.0.0.1:8000/health && echo
 ```
 
 ---
@@ -234,12 +234,12 @@ pip install -r requirements.txt
 alembic upgrade head
 
 # Start the backend server
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Health check (new terminal):
 ```bash
-curl -fsS http://127.0.0.1:8001/health && echo
+curl -fsS http://127.0.0.1:8000/health && echo
 ```
 
 ---
@@ -338,7 +338,7 @@ alembic upgrade head
 ```bash
 sudo apt install -y tmux
 tmux new -s filaops
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Detach: `Ctrl+B` then `D`  
@@ -351,18 +351,18 @@ tmux attach -t filaops
 
 UFW example:
 ```bash
-sudo ufw allow 8001/tcp
+sudo ufw allow 8000/tcp
 ```
 
 ### Accessing it from your laptop
 
 If you’re running the **frontend locally** but backend remotely, you usually need:
-- Backend reachable: `http://SERVER_IP:8001`
+- Backend reachable: `http://SERVER_IP:8000`
 - Frontend configured to call that (often an env like `VITE_API_URL` / `VITE_API_BASE_URL` / `NEXT_PUBLIC_API_URL`)
 
 Simple smoke test from your laptop:
 ```bash
-curl -fsS http://SERVER_IP:8001/health
+curl -fsS http://SERVER_IP:8000/health
 ```
 
 ---
@@ -449,7 +449,7 @@ fi
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[backend] Starting backend on http://localhost:8001"
+echo "[backend] Starting backend on http://localhost:8000"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
@@ -465,7 +465,7 @@ fi
 
 # shellcheck disable=SC1091
 source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## `start-all.sh` (opens backend + frontend in separate terminals if possible)
@@ -521,9 +521,9 @@ Run on a different port:
 uvicorn app.main:app --host 0.0.0.0 --port 8002
 ```
 
-## Frontend can’t reach backend
-- If both are on the same machine, frontend should call `http://localhost:8001`
-- If frontend is on your laptop but backend is remote, update frontend env to call `http://SERVER_IP:8001` and open firewall (`ufw allow 8001/tcp`)
+## Frontend can't reach backend
+- If both are on the same machine, frontend should call `http://localhost:8000`
+- If frontend is on your laptop but backend is remote, update frontend env to call `http://SERVER_IP:8000` and open firewall (`ufw allow 8000/tcp`)
 
 ---
 

@@ -333,6 +333,8 @@ export default function AdminPurchasing() {
       if (res.ok) {
         const data = await res.json();
         setPurchasingTrend(data);
+      } else {
+        console.error("Purchasing trend API error:", res.status);
       }
     } catch (err) {
       console.error("Failed to fetch purchasing trend:", err);

@@ -30,6 +30,7 @@ from app.models.bom import BOMLine
 from app.models.inventory import Inventory
 from app.models.manufacturing import Routing, RoutingOperation, Resource
 from app.models.work_center import WorkCenter
+from app.models.material_spool import MaterialSpool, ProductionOrderSpool
 from app.services.inventory_service import process_production_completion, reserve_production_materials, release_production_reservations
 from app.services.uom_service import UOMConversionError
 from app.schemas.production_order import (
@@ -48,6 +49,7 @@ from app.schemas.production_order import (
     ScrapReasonCreate,
     ScrapReasonDetail,
     ScrapReasonUpdate,
+    ProductionOrderCompleteRequest,
     ScrapReasonsResponse,
     QCInspectionRequest,
     QCInspectionResponse,
@@ -1038,6 +1040,8 @@ async def start_production_order(
 @router.post("/{order_id}/complete", response_model=ProductionOrderResponse)
 async def complete_production_order(
     order_id: int,
+    request: Optional[ProductionOrderCompleteRequest] = None,
+    # Keep query params for backward compatibility
     quantity_completed: Optional[Decimal] = Query(None),
     quantity_scrapped: Optional[Decimal] = Query(None),
     force_close_short: bool = Query(False, description="Explicitly close order short without producing all units"),
@@ -1046,9 +1050,13 @@ async def complete_production_order(
 ) -> ProductionOrderResponse:
     """Complete a production order.
 
+    Accepts either query parameters (legacy) or a request body with spool tracking.
+
     If quantity_completed + quantity_scrapped < quantity_ordered, the order
     would be closed "short" (fewer units produced than ordered). This requires
     force_close_short=true to proceed, otherwise returns a 400 error.
+
+    Optional: Include spools_used in request body to record material traceability.
     """
     order = db.query(ProductionOrder).filter(ProductionOrder.id == order_id).first()
     if not order:
@@ -1060,17 +1068,32 @@ async def complete_production_order(
     except StatusTransitionError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # Merge request body with query params (body takes precedence)
+    qty_completed_val = quantity_completed
+    qty_scrapped_val = quantity_scrapped
+    force_close_val = force_close_short
+    spools_used = None
+
+    if request:
+        if request.quantity_completed is not None:
+            qty_completed_val = request.quantity_completed
+        if request.quantity_scrapped is not None:
+            qty_scrapped_val = request.quantity_scrapped
+        if request.force_close_short:
+            force_close_val = request.force_close_short
+        spools_used = request.spools_used
+
     # Calculate quantities for validation
-    qty_completed = quantity_completed if quantity_completed is not None else order.quantity_ordered
+    qty_completed = qty_completed_val if qty_completed_val is not None else order.quantity_ordered
     qty_scrapped_existing = Decimal(str(order.quantity_scrapped or 0))
-    qty_scrapped_new = quantity_scrapped if quantity_scrapped is not None else Decimal(0)
+    qty_scrapped_new = qty_scrapped_val if qty_scrapped_val is not None else Decimal(0)
     qty_scrapped_total = qty_scrapped_existing + qty_scrapped_new
     total_accounted = Decimal(str(qty_completed)) + qty_scrapped_total
 
     # Validate: prevent closing short without explicit acknowledgment
     if total_accounted < order.quantity_ordered:  # type: ignore[operator]
         shortfall = order.quantity_ordered - total_accounted  # type: ignore[operator]
-        if not force_close_short:
+        if not force_close_val:
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot complete: order would be closed {shortfall} units short. "
@@ -1084,7 +1107,7 @@ async def complete_production_order(
 
     # Apply quantities
     order.quantity_completed = qty_completed  # type: ignore[assignment]
-    if quantity_scrapped is not None:
+    if qty_scrapped_val is not None:
         order.quantity_scrapped = qty_scrapped_total  # type: ignore[assignment]
 
     order.status = "complete"  # type: ignore[assignment]
@@ -1152,6 +1175,62 @@ async def complete_production_order(
             status_code=400,
             detail=str(e)
         )
+
+    # =========================================================================
+    # Record spool consumption for material traceability
+    # This creates the linkage between spools and production orders,
+    # enabling forward trace (spool → products) and backward trace (product → spools)
+    # =========================================================================
+    if spools_used:
+        for spool_usage in spools_used:
+            # Validate spool exists
+            spool = db.query(MaterialSpool).filter(MaterialSpool.id == spool_usage.spool_id).first()
+            if not spool:
+                logging.warning(f"Spool {spool_usage.spool_id} not found for traceability - skipping")
+                continue
+
+            # Check if consumption already recorded - update if so
+            existing = db.query(ProductionOrderSpool).filter(
+                ProductionOrderSpool.production_order_id == order_id,
+                ProductionOrderSpool.spool_id == spool_usage.spool_id,
+            ).first()
+
+            # Calculate weight consumed - use provided value or estimate from BOM
+            weight_consumed_g = spool_usage.weight_consumed_g
+            if weight_consumed_g is None:
+                # Estimate from BOM if not provided
+                bom_line = db.query(BOMLine).filter(
+                    BOMLine.bom_id == order.bom_id,
+                    BOMLine.component_id == spool_usage.product_id,
+                ).first()
+                if bom_line:
+                    # BOM quantity * units completed
+                    weight_consumed_g = Decimal(str(bom_line.quantity)) * Decimal(str(qty_completed))
+                else:
+                    weight_consumed_g = Decimal("0")
+
+            if existing:
+                # Update existing record
+                existing.weight_consumed_kg = existing.weight_consumed_kg + weight_consumed_g  # type: ignore[operator]
+            else:
+                # Create new consumption record
+                consumption = ProductionOrderSpool(
+                    production_order_id=order_id,
+                    spool_id=spool_usage.spool_id,
+                    weight_consumed_kg=weight_consumed_g,  # Field name is _kg but stores grams
+                    created_by=current_user.email if current_user else None,
+                )
+                db.add(consumption)
+
+            # Update spool's current weight
+            new_weight = (spool.current_weight_kg or Decimal("0")) - weight_consumed_g
+            if new_weight < 0:
+                new_weight = Decimal("0")
+            spool.current_weight_kg = new_weight  # type: ignore[assignment]
+
+            # Mark as empty if weight is effectively zero
+            if new_weight < Decimal("5"):  # Less than 5g = empty
+                spool.status = "empty"  # type: ignore[assignment]
 
     # NOTE: Sales order advancement to ready_to_ship now happens after QC inspection passes
     # See POST /{order_id}/qc endpoint

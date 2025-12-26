@@ -11,16 +11,16 @@ All three issues are caused by **CORS errors** preventing the frontend from call
 ## Debugging Steps
 
 ### 1. Verify Backend is Running
-Check if the backend is running on port 8002:
+Check if the backend is running on port 8000:
 ```powershell
-# Check if port 8002 is in use
-netstat -ano | findstr :8002
+# Check if port 8000 is in use
+netstat -ano | findstr :8000
 ```
 
 If not running, start it:
 ```powershell
-cd C:\BLB3D_Production_DEV\backend
-.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+cd C:\repos\filaops\backend
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 2. Check Browser Console
@@ -31,11 +31,11 @@ Open browser DevTools (F12) and check:
   - Check response headers for `Access-Control-Allow-Origin`
 
 ### 3. Verify API URL Configuration
-The frontend uses `VITE_API_URL` environment variable or defaults to `http://localhost:8002`.
+The frontend uses `VITE_API_URL` environment variable or defaults to `http://localhost:8000`.
 
-Check `.env.dev` in the project root:
+Check `.env` in the project root:
 ```env
-VITE_API_URL=http://localhost:8002
+VITE_API_URL=http://localhost:8000
 ```
 
 If changed, restart the frontend dev server.
@@ -51,7 +51,7 @@ Verify `http://localhost:5174` is in the list.
 ### 5. Test API Directly
 Try calling the API directly from browser console:
 ```javascript
-fetch('http://localhost:8002/api/v1/work-centers/?center_type=machine&active_only=true', {
+fetch('http://localhost:8000/api/v1/work-centers/?center_type=machine&active_only=true', {
   headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
 })
 .then(r => r.json())
@@ -62,18 +62,18 @@ fetch('http://localhost:8002/api/v1/work-centers/?center_type=machine&active_onl
 ### 6. Common Fixes
 
 #### Backend Not Running
-- Start backend: `cd backend && .\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload`
+- Start backend: `cd backend && .\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
 
 #### Wrong Port
-- Frontend expects backend on port 8002
-- Check `.env.dev` has `VITE_API_URL=http://localhost:8002`
-- Restart frontend after changing `.env.dev`
+- Frontend expects backend on port 8000
+- Check `.env` has `VITE_API_URL=http://localhost:8000`
+- Restart frontend after changing `.env`
 
 #### CORS Not Allowing Frontend Origin
-- Backend defaults include `http://localhost:5174`
-- If using a different port, add it to `.env.dev`:
+- Backend defaults include `http://localhost:5173`
+- If using a different port, add it to `.env`:
   ```env
-  ALLOWED_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
+  ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
   ```
 - Restart backend after changing CORS settings
 
@@ -85,7 +85,7 @@ fetch('http://localhost:8002/api/v1/work-centers/?center_type=machine&active_onl
 
 When working correctly, you should see:
 ```
-Fetching work centers from: http://localhost:8002/api/v1/work-centers/?center_type=machine&active_only=true
+Fetching work centers from: http://localhost:8000/api/v1/work-centers/?center_type=machine&active_only=true
 Work centers response: 200 OK
 Work centers data: [...]
 ```
@@ -93,7 +93,7 @@ Work centers data: [...]
 When failing, you'll see:
 ```
 Error fetching scrap reasons: TypeError: Failed to fetch
-Network error: Failed to fetch. Is the backend running on http://localhost:8002?
+Network error: Failed to fetch. Is the backend running on http://localhost:8000?
 ```
 
 ## Next Steps After Fixing CORS

@@ -21,6 +21,6 @@ if (Test-Path $frontendScript) {
 }
 
 Write-Host "`n[start-all] Launched backend and (if present) frontend in new windows." -ForegroundColor Green
-Write-Host "[start-all] Backend will be at: http://localhost:8001" -ForegroundColor Cyan
+Write-Host "[start-all] Backend will be at: http://localhost:8000" -ForegroundColor Cyan
 Write-Host "[start-all] Frontend will be at: http://localhost:5173" -ForegroundColor Cyan
 

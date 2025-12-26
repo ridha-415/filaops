@@ -25,8 +25,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\start-all.ps1
 ```
 
-- Backend: http://localhost:8001/health  
-- API docs: http://localhost:8001/docs  
+- Backend: http://localhost:8000/health
+- API docs: http://localhost:8000/docs  
 - Frontend (most common): http://localhost:5173 (Vite) or http://localhost:3000 (Next/CRA)
 
 ---
@@ -126,17 +126,17 @@ From the **repo root**:
 ```
 
 Backend runs at:
-- http://localhost:8001
+- http://localhost:8000
 
 **Health check**
-- Open in browser: http://localhost:8001/health  
+- Open in browser: http://localhost:8000/health  
   Expect:
 ```json
 {"status":"healthy"}
 ```
 
 **API docs**
-- http://localhost:8001/docs
+- http://localhost:8000/docs
 
 ---
 
@@ -144,7 +144,7 @@ Backend runs at:
 
 If the logs mention first‑run setup, open:
 
-- http://localhost:8001/api/v1/auth/setup
+- http://localhost:8000/api/v1/auth/setup
 
 Create the initial admin user.
 
@@ -225,7 +225,7 @@ This:
 - activates the venv
 - checks critical imports
 - pings the DB
-- starts Uvicorn on :8001
+- starts Uvicorn on :8000
 
 ---
 
@@ -427,7 +427,7 @@ if (Test-Path $frontendScript) {
 }
 
 Write-Host "`n[start-all] Launched backend and (if present) frontend in new windows." -ForegroundColor Green
-Write-Host "[start-all] Backend will be at: http://localhost:8001" -ForegroundColor Cyan
+Write-Host "[start-all] Backend will be at: http://localhost:8000" -ForegroundColor Cyan
 Write-Host "[start-all] Frontend will be at: http://localhost:5173" -ForegroundColor Cyan
 ```
 
@@ -477,7 +477,7 @@ If `psql` is missing, see **psql not found** below.
 
 ---
 
-## Port 8001 already in use
+## Port 8000 already in use
 Use a different port:
 ```powershell
 .\start-backend.ps1 -Port 8010
@@ -501,9 +501,9 @@ Typical symptoms:
 - browser console shows CORS errors
 
 What to do:
-1) Confirm backend is healthy: http://localhost:8001/health  
+1) Confirm backend is healthy: http://localhost:8000/health
 2) Check whether your frontend expects an env var like `VITE_API_URL`, `REACT_APP_API_URL`, or `NEXT_PUBLIC_API_URL`.
-   - If it does, set it to `http://localhost:8001` in the frontend’s `.env.local` / `.env` file.
+   - If it does, set it to `http://localhost:8000` in the frontend's `.env.local` / `.env` file.
 3) Restart the frontend dev server.
 
 ---
@@ -531,7 +531,7 @@ What to do:
 
 ## Next steps
 
-- Open API docs: http://localhost:8001/docs
+- Open API docs: http://localhost:8000/docs
 - Use the UI to add products/materials/orders (once frontend is running)
 - If anything in this doc doesn’t match what you see, copy/paste:
   - the exact command you ran, and
