@@ -1,4 +1,5 @@
 import { test as base, Page } from '@playwright/test';
+import { E2E_CONFIG } from '../config';
 
 /**
  * Auth fixture - logs in as admin before tests that need authentication
@@ -9,15 +10,15 @@ export const test = base.extend<{ authenticatedPage: Page }>({
     await page.goto('/admin/login');
 
     // Fill login form
-    await page.fill('input[type="email"]', 'admin@localhost');
-    await page.fill('input[type="password"]', 'admin123');
-    
+    await page.fill('input[type="email"]', E2E_CONFIG.email);
+    await page.fill('input[type="password"]', E2E_CONFIG.password);
+
     // Submit and wait for navigation to complete
     await Promise.all([
       page.waitForURL('/admin**', { timeout: 10000 }),
       page.click('button[type="submit"]')
     ]);
-    
+
     // Wait for page to fully load and localStorage to be set
     // The navigation confirms login succeeded, give React time to update localStorage
     await page.waitForLoadState('networkidle');

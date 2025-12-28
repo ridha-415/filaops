@@ -2,7 +2,7 @@ import { test as setup, expect } from '@playwright/test';
 import { E2E_CONFIG } from './config';
 import * as fs from 'fs';
 
-const authFile = './e2e/.auth/user.json';
+const authFile = './tests/e2e/.auth/user.json';
 
 /**
  * Check if stored JWT token is expired or will expire soon
@@ -38,13 +38,13 @@ function isTokenExpiredOrExpiringSoon(): boolean {
     const SEVEN_DAYS = 604800;
 
     if (expiresIn < SEVEN_DAYS) {
-      console.log(`⚠️  Token expires in ${Math.floor(expiresIn / 86400)} days - re-authenticating`);
+      console.log(`[auth] Token expires in ${Math.floor(expiresIn / 86400)} days - re-authenticating`);
       return true;
     }
 
     return false; // Token is valid
   } catch (error) {
-    console.log(`⚠️  Error checking token: ${error} - re-authenticating`);
+    console.log(`[auth] Error checking token: ${error} - re-authenticating`);
     return true; // On any error, force re-auth
   }
 }
@@ -52,12 +52,12 @@ function isTokenExpiredOrExpiringSoon(): boolean {
 setup('authenticate', async ({ page }) => {
   // Skip authentication if token is still valid
   if (!isTokenExpiredOrExpiringSoon()) {
-    console.log('✅ Existing auth token is valid - skipping re-authentication');
+    console.log('[auth] Existing auth token is valid - skipping re-authentication');
     return;
   }
 
-  console.log('🔐 Authenticating test user...');
-  
+  console.log('[auth] Authenticating test user...');
+
   // Navigate to login page
   await page.goto('/admin/login');
   await page.waitForLoadState('networkidle');
@@ -70,10 +70,10 @@ setup('authenticate', async ({ page }) => {
   // Check for login errors before waiting for navigation
   const errorMessage = page.getByText(/incorrect.*password|invalid.*credentials/i);
   const errorVisible = await errorMessage.isVisible({ timeout: 2000 }).catch(() => false);
-  
+
   if (errorVisible) {
     throw new Error(
-      `❌ Login failed: Test user doesn't exist.\n` +
+      `[auth] Login failed: Test user doesn't exist.\n` +
       `Run: docker-compose -f docker-compose.dev.yml exec backend python scripts/seed_test_data.py`
     );
   }
@@ -83,7 +83,7 @@ setup('authenticate', async ({ page }) => {
 
   // Dismiss any promotional modals
   await page.waitForTimeout(500);
-  
+
   const closeButtons = [
     page.getByRole('button', { name: /don't show|got it|close|dismiss/i }),
     page.locator('button:has-text("×")'),
@@ -103,7 +103,6 @@ setup('authenticate', async ({ page }) => {
 
   // Save authentication state for reuse
   await page.context().storageState({ path: authFile });
-  
-  console.log('✅ Authentication successful, state saved');
-});
 
+  console.log('[auth] Authentication successful, state saved');
+});

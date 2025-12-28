@@ -9,7 +9,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 
 export default defineConfig({
-  testDir: './e2e/tests',
+  testDir: './tests/e2e',
   fullyParallel: false, // Serial execution for workflow tests
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -30,7 +30,7 @@ export default defineConfig({
     {
       name: 'setup',
       testMatch: /auth\.setup\.ts/,
-      testDir: './e2e',
+      testDir: './tests/e2e',
     },
     // Main tests - depend on setup and use stored auth
     {
@@ -38,7 +38,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         // Use stored auth state from setup
-        storageState: './e2e/.auth/user.json',
+        storageState: './tests/e2e/.auth/user.json',
       },
       dependencies: ['setup'],
     },
