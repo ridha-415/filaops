@@ -1,8 +1,11 @@
 """
 Shared test fixtures for FilaOps ERP tests
 
-Provides database setup, client creation, and user fixtures
+Provides database setup, client creation, and user fixtures.
+Uses PostgreSQL test database (filaops_test) by default.
+Set TEST_USE_POSTGRES=false to use SQLite in-memory for faster tests.
 """
+import os
 import pytest
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -21,13 +24,27 @@ from app.core.limiter import limiter
 limiter.enabled = False
 
 
-# Create in-memory SQLite database for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+USE_POSTGRES = os.getenv("TEST_USE_POSTGRES", "true").lower() == "true"
+
+if USE_POSTGRES:
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "Admin")
+    DB_NAME = os.getenv("TEST_DB_NAME", "filaops_test")
+    SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=False, pool_pre_ping=True)
+else:
+    SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
