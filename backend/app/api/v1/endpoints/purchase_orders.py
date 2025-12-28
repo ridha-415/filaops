@@ -573,12 +573,20 @@ async def receive_purchase_order(
     db: Session = Depends(get_db),
 ):
     """
-    Receive items from a purchase order
-
-    - Updates quantity_received on PO lines
-    - Creates inventory transactions
-    - Updates on-hand inventory
-    - Auto-transitions to 'received' if fully received
+    Process receipt of items for a purchase order and update inventory, traceability records, and PO status.
+    
+    Updates PO line received quantities, creates inventory transactions and Inventory rows, optionally creates MaterialLot and MaterialSpool records for material products, recalculates product average cost using a weighted average, and transitions the PO to "received" when all lines are fully received. Records purchasing events for the receipt and status change.
+    
+    Parameters:
+        po_id (int): ID of the purchase order to receive against.
+        request (ReceivePORequest): Receipt details including lines, received_date, location_id, and optional spool creation.
+    
+    Returns:
+        ReceivePOResponse: Summary of the receipt including PO number, count of lines processed, total quantity received, created transaction IDs, spools, and material lots.
+    
+    Raises:
+        HTTPException(404): If the PO, a referenced PO line, product, or related entity is not found.
+        HTTPException(400): For invalid operations such as receiving into a PO not in "ordered"/"shipped" state, receiving more than the remaining quantity for a line, incompatible unit conversions, invalid spool creation for non-material products, or spool weight mismatches.
     """
     po = db.query(PurchaseOrder).options(
         joinedload(PurchaseOrder.lines)
@@ -1303,4 +1311,3 @@ async def add_po_event(
         metadata_value=event.metadata_value,
         created_at=event.created_at,
     )
-

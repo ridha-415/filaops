@@ -30,15 +30,15 @@ logger = get_logger(__name__)
 
 def get_effective_cost(product: "Product") -> "Optional[Decimal]":
     """
-    Get the effective cost for a product based on its declared cost_method.
-
-    Cost methods:
-    - 'standard': Use standard_cost (for manufactured items with set costs)
-    - 'average': Use weighted average cost (default, for purchased items)
-    - 'fifo': Use last_cost as approximation (full FIFO requires cost layers)
-    - 'last': Use most recent purchase price
-
-    Returns None if no cost is available.
+    Determine the product's effective unit cost according to its configured cost_method.
+    
+    Evaluates the product's declared cost_method ("standard", "average", "fifo", "last") and returns the selected cost value, applying sensible fallbacks when the primary cost field is missing.
+    
+    Parameters:
+        product (Product): Product whose effective cost will be determined.
+    
+    Returns:
+        Decimal or None: The chosen unit cost as a Decimal, or `None` if no applicable cost is available.
     """
     method = (product.cost_method or "average").lower()
 
