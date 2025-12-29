@@ -613,7 +613,7 @@ def cleanup_test_data(db: Session) -> Dict[str, Any]:
         "products",
         "vendors",
         "refresh_tokens",
-        "users",
+        # "users",  # REMOVED: preserve admin accounts
     ]
 
     cleaned = []
@@ -624,6 +624,13 @@ def cleanup_test_data(db: Session) -> Dict[str, Any]:
         except Exception:
             # Table might not exist
             pass
+
+    # Only delete test users (preserve real admin accounts)
+    try:
+        db.execute(text("DELETE FROM users WHERE email LIKE '%@filaops.test'"))
+        cleaned.append("users (test accounts only)")
+    except Exception:
+        pass
 
     db.commit()
 
