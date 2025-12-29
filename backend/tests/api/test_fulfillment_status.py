@@ -208,3 +208,120 @@ class TestFulfillmentStatusEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["summary"]["state"] == "cancelled"
+
+
+class TestBulkFulfillmentStatus:
+    """Tests for ?include_fulfillment=true (API-302)"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, db_session):
+        """Reset sequences before each test."""
+        reset_sequences()
+
+    def test_list_without_flag_no_fulfillment(self, client, db_session, admin_headers):
+        """Default list should NOT include fulfillment field."""
+        # Arrange
+        user = create_test_user(db_session, account_type="admin")
+        product = create_test_product(db_session, sku="FIL-TEST-001", name="Test Filament")
+        order = create_test_sales_order(
+            db_session,
+            user=user,
+            lines=[{"product": product, "quantity": 10, "unit_price": Decimal("25.00")}]
+        )
+        db_session.commit()
+
+        # Act
+        response = client.get("/api/v1/sales-orders/", headers=admin_headers)
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        # Find our order in the list
+        order_item = next((o for o in data if o["id"] == order.id), None)
+        assert order_item is not None
+        # Fulfillment should be None or not present
+        assert order_item.get("fulfillment") is None
+
+    def test_list_with_flag_includes_fulfillment(self, client, db_session, admin_headers):
+        """With flag, response includes fulfillment summary."""
+        # Arrange
+        user = create_test_user(db_session, account_type="admin")
+        product = create_test_product(db_session, sku="FIL-TEST-001", name="Test Filament")
+        order = create_test_sales_order(
+            db_session,
+            user=user,
+            lines=[{"product": product, "quantity": 10, "unit_price": Decimal("25.00")}]
+        )
+        # Fully allocate the line
+        order.lines[0].allocated_quantity = Decimal("10")
+        db_session.commit()
+
+        # Act
+        response = client.get(
+            "/api/v1/sales-orders/?include_fulfillment=true",
+            headers=admin_headers
+        )
+
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) >= 1
+        # Find our order in the list
+        order_item = next((o for o in data if o["id"] == order.id), None)
+        assert order_item is not None
+        # Fulfillment should be present with summary fields
+        assert order_item["fulfillment"] is not None
+        assert order_item["fulfillment"]["state"] == "ready_to_ship"
+        assert order_item["fulfillment"]["lines_total"] == 1
+        assert order_item["fulfillment"]["lines_ready"] == 1
+        assert order_item["fulfillment"]["fulfillment_percent"] == 100.0
+        assert order_item["fulfillment"]["can_ship_complete"] is True
+
+    def test_list_fulfillment_matches_detail(self, client, db_session, admin_headers):
+        """Bulk fulfillment summary matches single-order endpoint."""
+        # Arrange
+        user = create_test_user(db_session, account_type="admin")
+        product = create_test_product(db_session, sku="FIL-TEST-001", name="Test Filament")
+        order = create_test_sales_order(
+            db_session,
+            user=user,
+            lines=[{"product": product, "quantity": 10, "unit_price": Decimal("25.00")}]
+        )
+        # Partial allocation
+        order.lines[0].allocated_quantity = Decimal("7")
+        db_session.commit()
+
+        # Act - get bulk list
+        list_response = client.get(
+            "/api/v1/sales-orders/?include_fulfillment=true",
+            headers=admin_headers
+        )
+        # Act - get single order detail
+        detail_response = client.get(
+            f"/api/v1/sales-orders/{order.id}/fulfillment-status",
+            headers=admin_headers
+        )
+
+        # Assert
+        assert list_response.status_code == 200
+        assert detail_response.status_code == 200
+
+        list_data = list_response.json()
+        detail_data = detail_response.json()
+
+        # Find order in list
+        order_item = next((o for o in list_data if o["id"] == order.id), None)
+        assert order_item is not None
+
+        # Compare summary fields
+        list_summary = order_item["fulfillment"]
+        detail_summary = detail_data["summary"]
+
+        assert list_summary["state"] == detail_summary["state"]
+        assert list_summary["lines_total"] == detail_summary["lines_total"]
+        assert list_summary["lines_ready"] == detail_summary["lines_ready"]
+        assert list_summary["lines_blocked"] == detail_summary["lines_blocked"]
+        assert list_summary["fulfillment_percent"] == detail_summary["fulfillment_percent"]
+        assert list_summary["can_ship_partial"] == detail_summary["can_ship_partial"]
+        assert list_summary["can_ship_complete"] == detail_summary["can_ship_complete"]

@@ -6,6 +6,8 @@ from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
+from app.schemas.fulfillment_status import FulfillmentStatusSummary
+
 
 # ============================================================================
 # Request Schemas
@@ -138,6 +140,8 @@ class SalesOrderListResponse(SalesOrderBase):
     shipping_zip: Optional[str] = None
     shipping_country: Optional[str] = None
     tracking_number: Optional[str] = None
+    # Fulfillment status summary (optional, only when include_fulfillment=true)
+    fulfillment: Optional[FulfillmentStatusSummary] = None
 
     class Config:
         from_attributes = True

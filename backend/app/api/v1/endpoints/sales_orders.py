@@ -763,6 +763,7 @@ async def get_user_sales_orders(
     limit: int = 50,
     status_filter: Optional[str] = None,
     status: Optional[List[str]] = Query(None),
+    include_fulfillment: bool = Query(False, description="Include fulfillment status summary"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -774,6 +775,7 @@ async def get_user_sales_orders(
     - limit: Max results (default: 50, max: 100)
     - status_filter: Filter by single status (deprecated, use status instead)
     - status: Filter by status(es) - can be repeated for multiple values
+    - include_fulfillment: Include fulfillment status summary for each order (default: false)
 
     Returns:
         List of sales orders ordered by creation date (newest first)
@@ -806,6 +808,19 @@ async def get_user_sales_orders(
         .limit(limit)
         .all()
     )
+
+    # If include_fulfillment is requested, compute fulfillment status for each order
+    if include_fulfillment:
+        result = []
+        for order in orders:
+            # Convert to dict for Pydantic model
+            order_dict = SalesOrderListResponse.model_validate(order).model_dump()
+            # Get fulfillment status
+            fulfillment_status = get_fulfillment_status(db, order.id)
+            if fulfillment_status:
+                order_dict["fulfillment"] = fulfillment_status.summary
+            result.append(SalesOrderListResponse(**order_dict))
+        return result
 
     return orders
 
