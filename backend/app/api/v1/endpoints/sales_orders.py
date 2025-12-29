@@ -1060,6 +1060,8 @@ async def get_required_orders_for_sales_order(
 
 from app.schemas.blocking_issues import SalesOrderBlockingIssues
 from app.services.blocking_issues import get_sales_order_blocking_issues
+from app.schemas.fulfillment_status import FulfillmentStatus
+from app.services.fulfillment_status import get_fulfillment_status
 
 
 @router.get("/{order_id}/blocking-issues", response_model=SalesOrderBlockingIssues)
@@ -1096,6 +1098,32 @@ async def get_blocking_issues(
             detail=f"Sales order {order_id} not found"
         )
 
+    return result
+
+
+# ============================================================================
+# ENDPOINT: Get Fulfillment Status (API-301)
+# ============================================================================
+
+@router.get("/{order_id}/fulfillment-status", response_model=FulfillmentStatus)
+async def get_order_fulfillment_status(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get fulfillment status for a sales order.
+
+    Returns line-by-line status and overall fulfillment progress.
+
+    Response includes:
+    - Order summary with fulfillment state (ready_to_ship, partially_ready, blocked, shipped, cancelled)
+    - Per-line breakdown with quantities ordered, allocated, shipped, and shortage amounts
+    - Estimated completion date based on incoming purchase orders
+    """
+    result = get_fulfillment_status(db, order_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Sales order not found")
     return result
 
 
