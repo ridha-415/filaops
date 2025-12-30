@@ -76,12 +76,12 @@ export default function SalesOrderCard({ order, onViewDetails, onShip }) {
   const orderTotal = order.total ?? order.grand_total ?? order.total_price ?? 0;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow">
+    <div className="bg-gray-800 rounded-lg shadow-sm border border-gray-700 p-4 hover:shadow-md transition-shadow">
       {/* Header: Order number, customer, and status badge */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h3 className="font-semibold text-gray-900">{order.order_number}</h3>
-          <p className="text-sm text-gray-600">{order.customer_name || 'No Customer'}</p>
+          <h3 className="font-semibold text-green-400">{order.order_number}</h3>
+          <p className="text-sm text-gray-300">{order.customer_name || 'No Customer'}</p>
         </div>
         <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[state] || STATUS_STYLES.blocked}`}>
           {STATUS_LABELS[state] || state}
@@ -91,12 +91,12 @@ export default function SalesOrderCard({ order, onViewDetails, onShip }) {
       {/* Fulfillment Progress Bar */}
       {fulfillment && (
         <div className="mb-3">
-          <div className="flex justify-between text-sm text-gray-600 mb-1">
+          <div className="flex justify-between text-sm text-gray-400 mb-1">
             <span>{fulfillment.lines_ready}/{fulfillment.lines_total} lines ready</span>
             <span>{percent}%</span>
           </div>
           <div
-            className="w-full bg-gray-200 rounded-full h-2"
+            className="w-full bg-gray-600 rounded-full h-2"
             role="progressbar"
             aria-valuenow={percent}
             aria-valuemin={0}
@@ -112,7 +112,7 @@ export default function SalesOrderCard({ order, onViewDetails, onShip }) {
       )}
 
       {/* Order Details */}
-      <div className="text-sm text-gray-500 mb-3 space-y-1">
+      <div className="text-sm text-gray-400 mb-3 space-y-1">
         <div className="flex justify-between">
           <span>Order Date:</span>
           <span>{formatDate(order.order_date || order.created_at)}</span>
@@ -123,14 +123,14 @@ export default function SalesOrderCard({ order, onViewDetails, onShip }) {
             <span>{formatDate(order.requested_date)}</span>
           </div>
         )}
-        <div className="flex justify-between font-medium text-gray-700">
+        <div className="flex justify-between font-medium text-white">
           <span>Total:</span>
           <span>{formatCurrency(orderTotal)}</span>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+      <div className="flex justify-between items-center pt-3 border-t border-gray-700">
         <button
           onClick={() => onViewDetails(order.id)}
           className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -150,3 +150,4 @@ export default function SalesOrderCard({ order, onViewDetails, onShip }) {
     </div>
   );
 }
+

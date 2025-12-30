@@ -1,8 +1,8 @@
 # FilaOps Redesign: Incremental Development Plan
 ## Test-Driven, Stackable Implementation
 
-**Last Updated:** 2025-12-28 (Session 2)
-**Current Status:** API-202 complete! Ready for UI Integration Sprint
+**Last Updated:** 2025-12-29 (Week 4 Complete)
+**Current Status:** Week 4 complete! v2.2.0-fulfillment-status released
 
 ---
 
@@ -14,7 +14,7 @@
 Week 1: Foundation                    ✅ COMPLETE
 Week 2: Demand Pegging               ✅ COMPLETE (API-101, UI-101, UI-102, E2E-101)
 Week 3: Blocking Issues              ✅ COMPLETE (API-201/202, UI-201/202/203/204, E2E-201)
-Week 4: Sales Order Fulfillment      ⏳ Not started  
+Week 4: Sales Order Fulfillment      ✅ COMPLETE (API-301/302/303, UI-301/302/303, E2E-301)
 Week 5: Smart Production Queue       ⏳ Not started
 Week 6: Command Center               ⏳ Not started
 Week 7: Integration & Polish         ⏳ Not started
@@ -35,25 +35,26 @@ Week 7: Integration & Polish         ⏳ Not started
 
 **Current Execution:**
 ```
-Phase 1: Backend APIs ✅ DONE (for now)
+Phase 1: Backend APIs ✅ DONE (Weeks 2-4)
 ├── Week 2 APIs ✅ (API-101: Item Demand Summary)
 ├── Week 3 APIs ✅ (API-201 + API-202: Blocking Issues)
-├── Week 4 APIs ⏳
+├── Week 4 APIs ✅ (API-301/302/303: Fulfillment Status)
 └── Week 5 APIs ⏳
 
-Phase 2: UI Components
-├── Week 2 UI ✅ (ItemCard built, not integrated)
-├── Week 3 UI ⏳ (BlockingIssuesPanel)
-├── Week 4 UI ⏳
+Phase 2: UI Components ✅ DONE (Weeks 2-4)
+├── Week 2 UI ✅ (ItemCard built + integrated)
+├── Week 3 UI ✅ (BlockingIssuesPanel)
+├── Week 4 UI ✅ (SalesOrderCard + FulfillmentProgress + OrderFilters)
 └── Week 5 UI ⏳
 
-Phase 3: UI Integration Sprint
-├── Wire all components into pages
-└── Full E2E test coverage
+Phase 3: E2E Tests ✅ (Weeks 2-4)
+├── E2E-101 ✅ (7 tests)
+├── E2E-201 ✅ (5 tests)
+└── E2E-301 ✅ (8 tests)
 
 Phase 4: Command Center & Polish
-├── Week 6 features
-└── Week 7 integration
+├── Week 6 features ⏳
+└── Week 7 integration ⏳
 ```
 
 ---
@@ -72,7 +73,7 @@ Phase 4: Command Center & Polish
 
 ---
 
-### Week 2: Demand Pegging 🔄 PARTIAL
+### Week 2: Demand Pegging ✅ COMPLETE
 
 | Ticket | Description | Status | Notes |
 |--------|-------------|--------|-------|
@@ -80,10 +81,10 @@ Phase 4: Command Center & Polish
 | API-102 | Supply situation | ✅ | Merged into API-101 |
 | API-103 | Demand pegging endpoint | ✅ | Merged into API-101: `GET /items/{id}/demand-summary` |
 | UI-101 | DemandPegging component | ✅ | Built as `ItemCard`, doc: `07-UI-101` |
-| UI-102 | Integrate into low stock | ⏳ | **GAP** - Component built but not wired in, doc: `10-UI-102` |
-| E2E-101 | Demand pegging flow | ✅ | 7 tests passing (API-level), needs UI assertions |
+| UI-102 | Integrate into low stock | ✅ | Integrated, doc: `10-UI-102` |
+| E2E-101 | Demand pegging flow | ✅ | 7 tests passing |
 
-**Checkpoint:** Users can see demand context on items ⏳ (blocked by UI-102)
+**Checkpoint:** Users can see demand context on items ✅
 
 **API Built:**
 ```
@@ -143,19 +144,39 @@ Tests: 8 passing
 
 ---
 
-### Week 4: Sales Order Fulfillment ⏳ PENDING
+### Week 4: Sales Order Fulfillment ✅ COMPLETE
 
 | Ticket | Description | Status | Notes |
 |--------|-------------|--------|-------|
-| API-301 | Fulfillment status query | ⏳ | |
-| API-302 | Fulfillment endpoint | ⏳ | |
-| API-303 | Enhanced SO list | ⏳ | |
-| UI-301 | SalesOrderCard | ⏳ | |
-| UI-302 | SO detail redesign | ⏳ | |
-| UI-303 | Integrate into list | ⏳ | |
-| E2E-301 | Fulfillment flow | ⏳ | |
+| API-301 | Single order fulfillment status | ✅ | 8 tests, `GET /sales-orders/{id}/fulfillment-status` |
+| API-302 | Bulk fulfillment in list | ✅ | 3 tests, `?include_fulfillment=true` query param |
+| API-303 | Enhanced SO list filtering/sorting | ✅ | 4 tests, filter by state, sort by priority |
+| UI-301 | SalesOrderCard component | ✅ | Card with status badge, progress bar, ship button |
+| UI-302 | FulfillmentProgress + detail page | ✅ | Line-by-line status, useFulfillmentStatus hook |
+| UI-303 | OrderFilters + card grid | ✅ | Filter buttons, sort dropdown, responsive grid |
+| E2E-301 | Fulfillment flow | ✅ | 8 tests passing |
 
-**Checkpoint:** See fulfillment progress on every SO ⏳
+**Checkpoint:** See fulfillment progress on every SO ✅
+
+**Key Learnings (Week 4):**
+- Auth token caching in E2E tests (get once in beforeAll, inject via localStorage)
+- cleanupTestData() can delete admin user - be careful with seeding order
+- Factories should use get-or-create pattern to avoid duplicate key errors
+
+**APIs:**
+```
+GET /api/v1/sales-orders/{id}/fulfillment-status ✅
+Returns: state, summary{lines_ready, lines_total, percent_ready}, lines[]
+Tests: 8 passing
+
+GET /api/v1/sales-orders/?include_fulfillment=true ✅
+Returns: items[] with optional fulfillment summary on each
+Tests: 3 passing
+
+GET /api/v1/sales-orders/?fulfillment_state=ready_to_ship&sort_by=fulfillment_priority ✅
+Returns: filtered and sorted list
+Tests: 4 passing
+```
 
 ---
 
@@ -217,13 +238,13 @@ Tests: 8 passing
 | `11-API-202-po-blocking-issues.md` | PO blocking issues | ✅ Done |
 | `12-E2E-201-blocking-issues.md` | Blocking issues E2E tests | ✅ Done |
 | `week4/00-week4-overview.md` | Week 4 overview & gotchas | Reference |
-| `week4/01-API-301-fulfillment-status.md` | Single order fulfillment API | ⏳ Pending |
-| `week4/02-API-302-bulk-fulfillment.md` | Bulk fulfillment in list | ⏳ Pending |
-| `week4/03-API-303-enhanced-so-list.md` | Filtering & sorting | ⏳ Pending |
-| `week4/04-UI-301-salesordercard.md` | SalesOrderCard component | ⏳ Pending |
-| `week4/05-UI-302-detail-status.md` | Detail page integration | ⏳ Pending |
-| `week4/06-UI-303-list-integration.md` | List page integration | ⏳ Pending |
-| `week4/07-E2E-301-fulfillment-tests.md` | Fulfillment E2E tests | ⏳ Pending |
+| `week4/01-API-301-fulfillment-status.md` | Single order fulfillment API | ✅ Done |
+| `week4/02-API-302-bulk-fulfillment.md` | Bulk fulfillment in list | ✅ Done |
+| `week4/03-API-303-enhanced-so-list.md` | Filtering & sorting | ✅ Done |
+| `week4/04-UI-301-salesordercard.md` | SalesOrderCard component | ✅ Done |
+| `week4/05-UI-302-detail-status.md` | Detail page integration | ✅ Done |
+| `week4/06-UI-303-list-integration.md` | List page integration | ✅ Done |
+| `week4/07-E2E-301-fulfillment-tests.md` | Fulfillment E2E tests | ✅ Done |
 
 ---
 
@@ -255,7 +276,12 @@ Tests: 8 passing
 | E2E-101 | 7 passing | ✅ |
 | API-201 | 7 passing | ✅ |
 | API-202 | 8 passing | ✅ |
-| **Total** | **30 passing** | |
+| E2E-201 | 5 passing | ✅ |
+| API-301 | 8 passing | ✅ |
+| API-302 | 3 passing | ✅ |
+| API-303 | 4 passing | ✅ |
+| E2E-301 | 8 passing | ✅ |
+| **Total** | **58 passing** | |
 
 ---
 
@@ -320,32 +346,42 @@ frontend/
 
 ---
 
-## Next Steps: Week 4 - Sales Order Fulfillment
+## Known Issues / Backlog
 
-**Week 3 Complete!**
-- ✅ API-201: SO Blocking Issues  
-- ✅ API-202: PO Blocking Issues
-- ✅ UI-201/202/203/204: BlockingIssuesPanel + suggested actions
-- ✅ E2E-201: 4 tests passing
+| Issue | Priority | Description | Status |
+|-------|----------|-------------|--------|
+| INV-BUG-001 | High | Production order completion logs transactions but doesn't update on-hand quantities | ⏳ Not started |
+| INV-BUG-002 | Medium | UOM display inconsistencies (showing "G" in qty column, "KG" in unit column) | ⏳ Not started |
+| INV-BUG-003 | Medium | UOM table was empty - no units defined (fixed manually, needs seed script) | ⏳ Needs seed |
+| UI-BUG-001 | Low | SalesOrderCard has white background - doesn't match dark theme | ⏳ Not started |
 
-**Before Starting Week 4:**
+**Notes:**
+- These bugs are pre-existing (not caused by UI refactor work)
+- INV-BUG-001 is serious: transactions are logged but inventory balances don't change
+- Don't block UI refactor work, but should be addressed before production use
+
+---
+
+## Next Steps: Week 5 - Smart Production Queue
+
+**Week 4 Complete!**
+- ✅ API-301/302/303: Fulfillment status endpoints (15 tests)
+- ✅ UI-301/302/303: SalesOrderCard + FulfillmentProgress + OrderFilters
+- ✅ E2E-301: 8 tests passing
+- ✅ Tagged v2.2.0-fulfillment-status
+
+**Before Starting Week 5:**
 1. Run full CI suite to verify no regressions
-2. Merge `feat/ui-redesign` → `main`
-3. Tag `v2.1.0-demand-pegging`
-4. Create fresh branch: `feat/week4-fulfillment`
+2. Create fresh branch: `feat/week5-production-queue`
+3. Create spec docs in `docs/UI_Refactor/week5/`
 
-**Week 4 Tasks (in order):**
-1. **API-301:** Single order fulfillment status endpoint
-2. **API-302:** Bulk fulfillment in list (query param)
-3. **API-303:** Filtering & sorting by fulfillment state
-4. **UI-301:** SalesOrderCard component
-5. **UI-302:** Detail page fulfillment progress
-6. **UI-303:** List page with card grid
-7. **E2E-301:** Fulfillment flow tests
+**Week 5 Tasks (in order):**
+1. **API-401:** Production queue with material readiness
+2. **UI-401:** SmartProductionQueue component
+3. **UI-402:** Replace kanban default view
+4. **E2E-401:** Production queue tests
 
-**See:** `docs/UI_Refactor/week4/` for detailed specs
-
-**Goal:** Users can see fulfillment progress on SO list and detail pages.
+**Goal:** Prioritized, actionable production queue showing what can be started now.
 
 ---
 
@@ -477,11 +513,11 @@ git push origin v2.1.0-demand-pegging
 
 | Version | Content | Status |
 |---------|---------|--------|
-| v2.1.0-demand-pegging | Epic 1-2: Item demand + Blocking issues | 🔄 In Progress |
-| v2.2.0-fulfillment | Epic 3-4: SO fulfillment + Production context | ⏳ Planned |
-| v2.3.0-smart-queue | Epic 5: Smart production queue | ⏳ Planned |
-| v2.4.0-command-center | Epic 6: Command center dashboard | ⏳ Planned |
-| v2.5.0-polish | Epic 7: Full integration + polish | ⏳ Planned |
+| v2.1.0-demand-pegging | Epic 1-2: Item demand + Blocking issues | ✅ Released |
+| v2.2.0-fulfillment-status | Epic 3: SO fulfillment status + card grid | ✅ Released |
+| v2.3.0-smart-queue | Epic 4: Smart production queue | ⏳ Planned |
+| v2.4.0-command-center | Epic 5: Command center dashboard | ⏳ Planned |
+| v2.5.0-polish | Epic 6: Full integration + polish | ⏳ Planned |
 
 ### For New Sessions (3-Second Bob Protocol™)
 
@@ -582,9 +618,9 @@ pytest tests/  # Verify still works
 | Area | Unit Test | Integration | E2E |
 |------|-----------|-------------|-----|
 | Demand Pegging API | ✅ 8 tests | ✓ | ✓ |
-| Blocking Issues API | ✅ 15 tests (7+8) | ✓ | ⏳ |
-| Fulfillment API | ⏳ | ⏳ | ⏳ |
-| UI Components | ⏳ | - | ⏳ |
+| Blocking Issues API | ✅ 15 tests (7+8) | ✓ | ✅ 5 tests |
+| Fulfillment API | ✅ 15 tests (8+3+4) | ✓ | ✅ 8 tests |
+| UI Components | ✅ | - | ✅ |
 | Complete Flows | - | - | ⏳ |
 
 ---
