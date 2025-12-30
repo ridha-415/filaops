@@ -622,3 +622,152 @@ def create_test_inventory_transaction(
     db.add(txn)
     db.flush()
     return txn
+
+
+# =============================================================================
+# WORK CENTER FACTORY
+# =============================================================================
+
+def create_test_work_center(
+    db: Session,
+    code: Optional[str] = None,
+    name: str = "Test Work Center",
+    center_type: str = "production",
+    is_active: bool = True
+) -> "WorkCenter":
+    """
+    Create a test work center.
+
+    Args:
+        db: Database session
+        code: Work center code (auto-generated if not provided)
+        name: Work center name
+        center_type: Type of work center
+        is_active: Whether work center is active
+
+    Returns:
+        Created or existing WorkCenter instance
+    """
+    from app.models.work_center import WorkCenter
+
+    if code is None:
+        code = f"WC-{datetime.now().strftime('%H%M%S%f')}"
+
+    # Check if exists (idempotent)
+    existing = db.query(WorkCenter).filter(WorkCenter.code == code).first()
+    if existing:
+        return existing
+
+    wc = WorkCenter(
+        code=code,
+        name=name,
+        center_type=center_type,
+        is_active=is_active
+    )
+    db.add(wc)
+    db.flush()
+    return wc
+
+
+# =============================================================================
+# RESOURCE/MACHINE FACTORY
+# =============================================================================
+
+def create_test_resource(
+    db: Session,
+    work_center: "WorkCenter",
+    code: Optional[str] = None,
+    name: str = "Test Resource",
+    status: str = "available",
+    active: bool = True
+) -> "Machine":
+    """
+    Create a test resource/machine.
+
+    Args:
+        db: Database session
+        work_center: Parent work center
+        code: Resource code (auto-generated if not provided)
+        name: Resource name
+        status: Resource status (available, busy, maintenance, offline)
+        active: Whether resource is active
+
+    Returns:
+        Created or existing Machine instance
+    """
+    from app.models.work_center import Machine
+
+    if code is None:
+        code = f"RES-{datetime.now().strftime('%H%M%S%f')}"
+
+    # Check if exists (idempotent)
+    existing = db.query(Machine).filter(Machine.code == code).first()
+    if existing:
+        return existing
+
+    resource = Machine(
+        work_center_id=work_center.id,
+        code=code,
+        name=name,
+        status=status,
+        active=active
+    )
+    db.add(resource)
+    db.flush()
+    return resource
+
+
+# =============================================================================
+# PRODUCTION ORDER OPERATION FACTORY
+# =============================================================================
+
+def create_test_po_operation(
+    db: Session,
+    production_order: "ProductionOrder",
+    work_center: "WorkCenter",
+    sequence: int = 10,
+    operation_code: str = "OP",
+    operation_name: str = "Test Operation",
+    status: str = "pending",
+    planned_run_minutes: int = 60,
+    resource: Optional["Machine"] = None,
+    actual_start: Optional[datetime] = None,
+    actual_end: Optional[datetime] = None
+) -> "ProductionOrderOperation":
+    """
+    Create a test production order operation.
+
+    Args:
+        db: Database session
+        production_order: Parent production order
+        work_center: Work center for this operation
+        sequence: Operation sequence number
+        operation_code: Short code for operation
+        operation_name: Display name for operation
+        status: Operation status (pending, queued, running, complete, skipped)
+        planned_run_minutes: Planned run time in minutes
+        resource: Specific resource/machine assigned
+        actual_start: Actual start time
+        actual_end: Actual end time
+
+    Returns:
+        Created ProductionOrderOperation instance
+    """
+    from app.models.production_order import ProductionOrderOperation
+
+    op = ProductionOrderOperation(
+        production_order_id=production_order.id,
+        work_center_id=work_center.id,
+        resource_id=resource.id if resource else None,
+        sequence=sequence,
+        operation_code=operation_code,
+        operation_name=operation_name,
+        status=status,
+        planned_setup_minutes=Decimal("0"),
+        planned_run_minutes=Decimal(str(planned_run_minutes)),
+        actual_start=actual_start,
+        actual_end=actual_end
+    )
+    db.add(op)
+    db.flush()
+    return op

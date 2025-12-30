@@ -98,6 +98,12 @@ def db_session():
 
 
 @pytest.fixture
+def db(db_session):
+    """Alias for db_session - provides 'db' fixture name for tests"""
+    return db_session
+
+
+@pytest.fixture
 def client(db_session):
     """Create a test client with database override"""
     def override_get_db():

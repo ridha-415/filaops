@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     auth,
     sales_orders,
     production_orders,
+    operation_status,
     inventory,
     products,
     items,
@@ -65,6 +66,13 @@ router.include_router(
     production_orders.router,
     prefix="/production-orders",
     tags=["production"]
+)
+
+# Operation Status (nested under production orders)
+router.include_router(
+    operation_status.router,
+    prefix="/production-orders",
+    tags=["production-operations"]
 )
 
 # Inventory
