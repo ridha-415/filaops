@@ -5,7 +5,7 @@ This migration adds support for multiple documents per purchase order:
 - File metadata (name, size, type)
 - Integration with Google Drive and local storage
 
-Also adds preferred_vendor_id to products for smarter PO creation from low stock.
+Also creates vendor_items table for SKU mapping memory.
 
 Revision ID: 036
 Revises: 035
@@ -25,7 +25,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add purchase_order_documents table and preferred_vendor_id to products."""
+    """Add purchase_order_documents and vendor_items tables."""
     
     # 1. Create purchase_order_documents table
     op.create_table(
@@ -60,25 +60,11 @@ def upgrade() -> None:
     # Index for quick lookups by PO
     op.create_index('ix_po_documents_po_id', 'purchase_order_documents', ['purchase_order_id'])
     op.create_index('ix_po_documents_type', 'purchase_order_documents', ['document_type'])
-    
-    # 2. Add preferred_vendor_id to products for smarter PO creation
-    op.add_column('products',
-        sa.Column('preferred_vendor_id', sa.Integer(), nullable=True,
-                  comment='Default vendor for this product when creating POs'))
-    
-    op.create_foreign_key(
-        'fk_products_preferred_vendor',
-        'products', 'vendors',
-        ['preferred_vendor_id'], ['id'],
-        ondelete='SET NULL'
-    )
-    
-    # 3. Add vendor_sku to products for vendor-specific SKU tracking
-    op.add_column('products',
-        sa.Column('vendor_sku', sa.String(length=100), nullable=True,
-                  comment='Vendor-specific SKU/part number'))
-    
-    # 4. Create vendor_items table for SKU mapping memory (from handoff doc)
+
+    # NOTE: preferred_vendor_id and vendor_sku columns already exist in initial schema
+    # (b1815de543ea_001_initial_postgres_schema.py), so we don't add them here
+
+    # 2. Create vendor_items table for SKU mapping memory (from handoff doc)
     op.create_table(
         'vendor_items',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -109,11 +95,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Remove tables and columns."""
+    """Remove tables created by this migration."""
+    # Drop vendor_items table and its indexes
+    op.drop_index('ix_vendor_items_product_id', 'vendor_items')
+    op.drop_index('ix_vendor_items_vendor_id', 'vendor_items')
     op.drop_table('vendor_items')
-    op.drop_constraint('fk_products_preferred_vendor', 'products', type_='foreignkey')
-    op.drop_column('products', 'vendor_sku')
-    op.drop_column('products', 'preferred_vendor_id')
+
+    # Drop purchase_order_documents table and its indexes
     op.drop_index('ix_po_documents_type', 'purchase_order_documents')
     op.drop_index('ix_po_documents_po_id', 'purchase_order_documents')
     op.drop_table('purchase_order_documents')
+
+    # NOTE: preferred_vendor_id and vendor_sku are NOT dropped here
+    # because they exist in the initial schema, not added by this migration
