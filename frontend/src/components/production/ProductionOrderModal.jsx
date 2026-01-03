@@ -330,7 +330,8 @@ export default function ProductionOrderModal({
         throw new Error(data.detail || 'Failed to start operation');
       }
 
-      fetchOperations();
+      // Refresh operations first, then notify parent
+      await fetchOperations();
       onUpdated?.();
     } catch (err) {
       setError(err.message);
@@ -386,7 +387,8 @@ export default function ProductionOrderModal({
         setShortageModalOpen(true);
       }
 
-      fetchOperations();
+      // Refresh operations first, then notify parent
+      await fetchOperations();
       onUpdated?.();
     } catch (err) {
       setError(err.message);

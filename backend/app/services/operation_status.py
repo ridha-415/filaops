@@ -15,6 +15,7 @@ from app.models.production_order import (
 from app.models.work_center import Machine
 from app.services.operation_blocking import check_operation_blocking
 from app.services.resource_scheduling import check_resource_available_now
+from app.services.inventory_service import consume_operation_material
 
 
 logger = logging.getLogger(__name__)
@@ -187,14 +188,16 @@ def consume_operation_materials(
     """
     Consume materials for a completed operation.
 
+    FIXED VERSION: Creates proper InventoryTransactions with cost_per_unit.
+
     For each ProductionOrderOperationMaterial:
-    - Update quantity_consumed to quantity_required (full consumption)
-    - Set status to 'consumed'
-    - Record consumed_at timestamp
+    - Creates InventoryTransaction with proper cost_per_unit
+    - Updates Inventory.on_hand_quantity
+    - Links transaction back to material record
+    - Tracks lot consumption for traceability
 
     Note: This consumes the full planned amount regardless of yield.
     For 3D printing, filament is fully consumed whether the part is good or bad.
-    Inventory adjustment can be done separately if actual usage differs.
 
     Args:
         db: Database session
@@ -212,33 +215,32 @@ def consume_operation_materials(
         ProductionOrderOperationMaterial.production_order_operation_id == op.id
     ).all()
 
+    # Get the production order for reference info
+    po = op.production_order
+
     for mat in materials:
-        # Skip already consumed or cost-only materials
-        if mat.status == 'consumed':
-            logger.info(f"Material {mat.id} already consumed, skipping")
-            continue
-
-        # For 3D printing, consume full planned amount
-        # (filament is used whether part is good or scrapped)
-        qty_to_consume = mat.quantity_required or Decimal("0")
-
-        # Update material record
-        mat.quantity_consumed = qty_to_consume
-        mat.status = 'consumed'
-        mat.consumed_at = datetime.utcnow()
-        mat.updated_at = datetime.utcnow()
-
-        consumed_materials.append({
-            "material_id": mat.id,
-            "component_id": mat.component_id,
-            "quantity_consumed": float(qty_to_consume),
-            "unit": mat.unit
-        })
-
-        logger.info(
-            f"Consumed material {mat.id}: {qty_to_consume} {mat.unit} "
-            f"for operation {op.id}"
+        # Use the robust inventory service function
+        txn = consume_operation_material(
+            db=db,
+            material=mat,
+            production_order=po,
+            created_by=op.operator_name,  # Pass operator from operation
         )
+
+        if txn:
+            consumed_materials.append({
+                "material_id": mat.id,
+                "component_id": mat.component_id,
+                "quantity_consumed": float(mat.quantity_consumed),
+                "unit": mat.unit,
+                "transaction_id": txn.id,
+                "cost_per_unit": float(txn.cost_per_unit) if txn.cost_per_unit else 0,
+            })
+
+            logger.info(
+                f"Created transaction {txn.id} for material {mat.id}: "
+                f"{mat.quantity_consumed} {mat.unit} @ ${txn.cost_per_unit or 0:.4f}/unit"
+            )
 
     return consumed_materials
 

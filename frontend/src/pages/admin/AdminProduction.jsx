@@ -241,7 +241,7 @@ export default function AdminProduction() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
-    status: "active",  // Default to active orders (excludes complete/short)
+    status: "in_progress",  // Default to in-progress orders
     search: searchParams.get("search") || "",
   });
 
@@ -311,7 +311,10 @@ export default function AdminProduction() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.status !== "all") params.set("status", filters.status);
+      // "active" is a frontend-only filter (excludes complete/short), don't send to backend
+      if (filters.status !== "all" && filters.status !== "active") {
+        params.set("status", filters.status);
+      }
       params.set("limit", "100");
 
       const res = await fetch(

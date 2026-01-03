@@ -465,7 +465,7 @@ def get_resource_statuses(db: Session) -> ResourcesResponse:
                 operation_id=running_op.id,
                 production_order_id=running_op.production_order_id,
                 production_order_code=po.code if po else "Unknown",
-                operation_code=running_op.operation_code,
+                operation_code=running_op.operation_code or f"OP{running_op.sequence or 1}",
                 sequence=running_op.sequence,
                 started_at=running_op.actual_start,
                 planned_minutes=planned,
