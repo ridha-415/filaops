@@ -36,7 +36,7 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-Open http://localhost:5173 — done! See **[Docker Setup Guide](FilaOps_Zero-to-Running_Docker.md)** for details.
+Open http://localhost:5173 — done! See **[Docker Setup Guide](docs/setup/docker.md)** for details.
 
 ### 💻 Native Installation
 
@@ -44,12 +44,12 @@ For development or if you prefer running services directly:
 
 | Platform | Guide | Prerequisites |
 |----------|-------|---------------|
-| **Windows** | [Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
-| **macOS/Linux** | [macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
+| **Windows** | [Windows Setup Guide](docs/setup/windows.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
+| **macOS/Linux** | [macOS/Linux Setup Guide](docs/setup/linux-macos.md) | Python 3.11+, PostgreSQL 16+, Node.js 18+ |
 
 After setup, open http://localhost:5173 — the **Setup Wizard** will guide you through creating your admin account.
 
-📖 **[Getting Started Guide](GETTING_STARTED.md)** for detailed instructions and troubleshooting.
+📖 **[Getting Started Guide](docs/getting-started.md)** for detailed instructions and troubleshooting.
 
 ---
 
@@ -143,7 +143,7 @@ The community version uses **development mode builds** for the frontend to maxim
 - **Improved components** - Enhanced scheduling, scrap, and update modals
 - **Instant hot reload** - See changes immediately during development
 
-See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)** for complete details.
+See **[PostgreSQL Migration Announcement](docs/archive/ANNOUNCEMENT_POSTGRES_MIGRATION.md)** for complete details.
 
 ---
 
@@ -151,11 +151,11 @@ See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)**
 
 | | |
 |---|---|
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** | System overview and workflows |
+| **[How It Works](docs/how-it-works.md)** | System overview and workflows |
 | **[docs/EMAIL_CONFIGURATION.md](docs/EMAIL_CONFIGURATION.md)** | Email/SMTP setup guide |
-| **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | Known issues and workarounds |
-| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Common issues and fixes |
-| **[FAQ.md](FAQ.md)** | Frequently asked questions |
+| **[Known Issues](docs/releases/v1.5.0_KNOWN_ISSUES.md)** | Known issues and workarounds |
+| **[Troubleshooting](docs/troubleshooting.md)** | Common issues and fixes |
+| **[FAQ](docs/faq.md)** | Frequently asked questions |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | For contributors |
 | **[docs/](docs/)** | Full documentation (architecture, API, planning) |
 
@@ -183,7 +183,7 @@ npm run dev
 - API docs: http://localhost:8000/docs
 - Admin UI: http://localhost:5173
 
-See **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** or **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** for complete setup instructions.
+See **[Windows Setup](docs/setup/windows.md)** or **[macOS/Linux Setup](docs/setup/linux-macos.md)** for complete setup instructions.
 
 ### Project Structure
 
