@@ -17,6 +17,8 @@ from app.api.v1.endpoints import (
     purchase_orders,
     po_documents,
     low_stock,
+    vendor_items,
+    invoice_import,
     exports,
     amazon_import,
     work_centers,
@@ -126,6 +128,18 @@ router.include_router(
 router.include_router(
     low_stock.router,
     prefix="/purchase-orders",
+    tags=["purchase-orders"]
+)
+
+# Vendor Items (SKU mapping for invoice parsing)
+router.include_router(
+    vendor_items.router,
+    tags=["purchase-orders"]
+)
+
+# Invoice Import (parse invoices to create POs)
+router.include_router(
+    invoice_import.router,
     tags=["purchase-orders"]
 )
 
