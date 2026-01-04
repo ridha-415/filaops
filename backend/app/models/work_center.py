@@ -98,7 +98,7 @@ class WorkCenter(Base):
 
 # Import Resource from manufacturing for backward compatibility
 # Machine was removed - use Resource instead
-from app.models.manufacturing import Resource
+from app.models.manufacturing import Resource  # noqa: E402
 
 # Backward compatibility alias
 Machine = Resource

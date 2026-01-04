@@ -4,12 +4,10 @@ Fulfillment Status Service - API-301
 Calculates fulfillment status for sales orders.
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import Optional
 from datetime import date
-from decimal import Decimal
 
-from app.models.sales_order import SalesOrder, SalesOrderLine
+from app.models.sales_order import SalesOrder
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderLine
 from app.schemas.fulfillment_status import (
     FulfillmentStatus, FulfillmentStatusSummary, LineStatus, FulfillmentState

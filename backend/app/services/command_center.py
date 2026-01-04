@@ -269,7 +269,7 @@ def _get_idle_resources_with_work(db: Session) -> List[ActionItem]:
 
     # Get all active resources
     resources = db.query(Resource).filter(
-        Resource.is_active == True,
+        Resource.is_active.is_(True),
         Resource.status == 'available'
     ).all()
 
@@ -385,7 +385,7 @@ def get_today_summary(db: Session) -> TodaySummary:
 
     # Resource counts
     resources_total = db.query(Resource).filter(
-        Resource.is_active == True
+        Resource.is_active.is_(True)
     ).count()
 
     # Busy = has running operation
@@ -400,7 +400,7 @@ def get_today_summary(db: Session) -> TodaySummary:
 
     # Down = maintenance or offline status
     resources_down = db.query(Resource).filter(
-        Resource.is_active == True,
+        Resource.is_active.is_(True),
         Resource.status.in_(['maintenance', 'offline'])
     ).count()
 
@@ -425,10 +425,8 @@ def get_today_summary(db: Session) -> TodaySummary:
 
 def get_resource_statuses(db: Session) -> ResourcesResponse:
     """Get current status of all resources/machines."""
-    now = datetime.utcnow()
-
     resources = db.query(Resource).filter(
-        Resource.is_active == True
+        Resource.is_active.is_(True)
     ).order_by(Resource.work_center_id, Resource.code).all()
 
     result_resources = []

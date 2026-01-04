@@ -7,7 +7,7 @@ Export purchase orders in QuickBooks-compatible formats:
 """
 import csv
 import io
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -18,7 +18,6 @@ from sqlalchemy import and_
 from app.db.session import get_db
 from app.logging_config import get_logger
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderLine
-from app.models.vendor import Vendor
 from app.api.v1.endpoints.auth import get_current_user
 from app.models.user import User
 from app.schemas.purchasing import (

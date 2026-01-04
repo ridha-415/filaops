@@ -118,7 +118,7 @@ def validate_product_uoms(
     # Hardware validation
     if is_hardware_sku(sku):
         if purchase_uom != 'EA' or storage_unit != 'EA':
-            return (False, f"Hardware products should use 'EA' for both purchase and storage units")
+            return (False, "Hardware products should use 'EA' for both purchase and storage units")
     
     # Cost sanity check for filaments
     if purchase_uom == 'KG' and storage_unit == 'G':

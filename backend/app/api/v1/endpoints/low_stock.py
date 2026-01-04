@@ -6,7 +6,7 @@ Streamlined workflow for creating purchase orders from low-stock items:
 - Create PO with pre-populated items
 """
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
@@ -25,6 +25,7 @@ from app.schemas.purchasing import (
     LowStockByVendor,
     LowStockResponse,
     CreatePOFromLowStockRequest,
+    CreatePOFromLowStockItem,
     PurchaseOrderCreate,
     POLineCreate,
     PurchaseOrderResponse,
@@ -70,7 +71,7 @@ async def get_low_stock_items(
         )
         .outerjoin(inventory_subquery, Product.id == inventory_subquery.c.product_id)
         .filter(
-            Product.is_active == True,
+            Product.is_active.is_(True),
             Product.reorder_point.isnot(None),
             Product.reorder_point > 0,
         )
@@ -225,7 +226,7 @@ async def create_po_from_low_stock(
     # Create PO using existing endpoint logic
     po_request = PurchaseOrderCreate(
         vendor_id=request.vendor_id,
-        notes=request.notes or f"Created from low-stock items",
+        notes=request.notes or "Created from low-stock items",
         lines=lines,
     )
     

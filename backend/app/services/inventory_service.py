@@ -22,7 +22,6 @@ from app.services.uom_service import (
     format_conversion_note,
     UOMConversionError,
     convert_cost_for_unit,
-    get_cost_reference_unit,
 )
 
 logger = get_logger(__name__)
@@ -778,7 +777,7 @@ def consume_from_material_lots(
 
 def consume_operation_material(
     db: Session,
-    material: "ProductionOrderOperationMaterial",
+    material: "ProductionOrderOperationMaterial",  # noqa: F821
     production_order: ProductionOrder,
     created_by: Optional[str] = None,
 ) -> Optional[InventoryTransaction]:
@@ -802,7 +801,6 @@ def consume_operation_material(
     Returns:
         The created InventoryTransaction, or None if material was already consumed
     """
-    from app.models.production_order import ProductionOrderOperationMaterial
 
     # Skip already consumed materials
     if material.status == 'consumed':
