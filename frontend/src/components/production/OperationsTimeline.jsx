@@ -75,6 +75,7 @@ function TimelineNode({ operation }) {
     timingText = formatDuration(actual);
   } else if (operation.status === 'running') {
     if (operation.actual_start) {
+      // eslint-disable-next-line react-hooks/purity -- Date.now() is intentional for live elapsed time
       const elapsed = Math.floor((Date.now() - parseDateTime(operation.actual_start).getTime()) / 60000);
       timingText = formatDuration(elapsed);
     } else {

@@ -223,21 +223,21 @@ def convert_quote_to_order(
         if quote.print_time_hours:
             estimated_time_minutes = int(float(quote.print_time_hours) * 60)
         
-        # Map rush level to priority
+        # Map rush level to priority (1=highest, 5=lowest)
         priority_map = {
-            "standard": "normal",
-            "rush": "high",
-            "super_rush": "high",
-            "urgent": "critical",
+            "standard": 3,
+            "rush": 2,
+            "super_rush": 2,
+            "urgent": 1,
         }
-        priority = priority_map.get(quote.rush_level, "normal")
+        priority = priority_map.get(quote.rush_level, 3)
         
         production_order = ProductionOrder(
             code=po_code,
             product_id=product.id,
             bom_id=bom.id if bom else None,
             sales_order_id=sales_order.id,  # Link to sales order
-            quantity=quote.quantity,
+            quantity_ordered=quote.quantity,
             status="scheduled",  # Ready for production
             priority=priority,
             estimated_time_minutes=estimated_time_minutes,

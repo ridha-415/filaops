@@ -92,12 +92,12 @@ export default function AlertCard({
   priority,
   title,
   description,
-  entityType,
-  entityId,
-  entityCode,
+  entityType: _entityType,
+  entityId: _entityId,
+  entityCode: _entityCode,
   suggestedActions = [],
   createdAt,
-  metadata = {}
+  metadata: _metadata = {}
 }) {
   const config = priorityConfig[priority] || priorityConfig[4];
   const typeIcon = typeIcons[type];

@@ -38,8 +38,7 @@ export default function AdminManufacturing() {
   const [editingRouting, setEditingRouting] = useState(null);
   const [routingProductId, setRoutingProductId] = useState(null);
   const [selectedWorkCenter, setSelectedWorkCenter] = useState(null);
-  const [showBOMModal, setShowBOMModal] = useState(false);
-  const [bomProductId, setBomProductId] = useState(null);
+  // BOM modal state removed - will be added when BOM editing is implemented
 
   const token = localStorage.getItem("adminToken");
 
@@ -1360,6 +1359,7 @@ function ResourceModal({ resource, workCenter, onClose, onSave, token }) {
   // Fetch printers and existing resources for this work center
   useEffect(() => {
     if (!resource && workCenter?.center_type === "machine") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Setting loading state before async fetch is valid
       setLoadingPrinters(true);
 
       // Fetch both printers and existing resources

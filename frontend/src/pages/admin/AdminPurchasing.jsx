@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { API_URL } from "../../config/api";
 import { useToast } from "../../components/Toast";
 import VendorModal from "../../components/purchasing/VendorModal";
@@ -236,7 +236,6 @@ const statusColors = {
 
 export default function AdminPurchasing() {
   const toast = useToast();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "orders";
   const [activeTab, setActiveTab] = useState(initialTab); // orders | vendors | import | low-stock
@@ -821,40 +820,7 @@ export default function AdminPurchasing() {
     }
   };
 
-  const handleFileUpload = async (poId, file) => {
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch(
-        `${API_URL}/api/v1/purchase-orders/${poId}/upload`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Failed to upload file");
-      }
-
-      const result = await res.json();
-      toast.success(
-        `File uploaded to ${
-          result.storage === "google_drive" ? "Google Drive" : "local storage"
-        }`
-      );
-      fetchPODetails(poId);
-      return result;
-    } catch (err) {
-      toast.error(err.message);
-      return null;
-    }
-  };
+  // handleFileUpload removed - file uploads are now handled via DocumentUploadPanel
 
   const handleDeletePO = async (poId, poNumber) => {
     if (!confirm(`Delete PO ${poNumber}? This cannot be undone.`)) return;

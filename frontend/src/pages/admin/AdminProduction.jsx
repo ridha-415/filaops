@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import ProductionOrderModal from "../../components/production/ProductionOrderModal";
 import ProductionQueueList from "../../components/production/ProductionQueueList";
 import SplitOrderModal from "../../components/SplitOrderModal";
@@ -7,7 +7,6 @@ import ScrapOrderModal from "../../components/ScrapOrderModal";
 import CompleteOrderModal from "../../components/CompleteOrderModal";
 import QCInspectionModal from "../../components/QCInspectionModal";
 import { API_URL } from "../../config/api";
-import { useToast } from "../../components/Toast";
 
 // Production Trend Chart Component
 function ProductionChart({ data, period, onPeriodChange, loading }) {
@@ -234,8 +233,6 @@ const SoLinkBadge = ({ order }) => {
 };
 
 export default function AdminProduction() {
-  const toast = useToast();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [productionOrders, setProductionOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -420,45 +417,7 @@ export default function AdminProduction() {
     }
   };
 
-  const handleStatusUpdate = async (orderId, newStatus) => {
-    try {
-      // Map status to the correct action endpoint
-      const actionEndpoints = {
-        released: "release",
-        in_progress: "start",
-        complete: "complete",
-      };
-
-      const action = actionEndpoints[newStatus];
-      if (!action) {
-        toast.error(`Invalid status transition: ${newStatus}`);
-        return;
-      }
-
-      const res = await fetch(
-        `${API_URL}/api/v1/production-orders/${orderId}/${action}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (res.ok) {
-        toast.success("Production order status updated");
-        fetchProductionOrders();
-      } else {
-        const errorData = await res.json();
-        toast.error(
-          `Failed to update status: ${errorData.detail || "Unknown error"}`
-        );
-      }
-    } catch (err) {
-      toast.error(`Failed to update status: ${err.message || "Network error"}`);
-    }
-  };
+  // handleStatusUpdate removed - status updates are handled via ProductionOrderModal
 
   const filteredOrders = productionOrders.filter((o) => {
     if (!filters.search) return true;

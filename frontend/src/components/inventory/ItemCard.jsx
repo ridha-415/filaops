@@ -189,36 +189,32 @@ export function ItemCard({
 
   const data = demandData || fetchedData;
 
-  // Wrapper for clickable states
-  const ClickableWrapper = ({ children }) => (
-    <div
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
-      className={onClick ? 'cursor-pointer' : ''}
-    >
-      {children}
-    </div>
-  );
+  // Clickable wrapper props
+  const wrapperProps = onClick ? {
+    onClick,
+    role: 'button',
+    tabIndex: 0,
+    onKeyDown: (e) => e.key === 'Enter' && onClick(),
+    className: 'cursor-pointer'
+  } : {};
 
   if (loading) {
     return (
-      <ClickableWrapper>
+      <div {...wrapperProps}>
         <ItemCardSkeleton compact={compact} />
-      </ClickableWrapper>
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <ClickableWrapper>
+      <div {...wrapperProps}>
         <div className={`p-4 border border-red-700 bg-red-900/30 rounded-lg ${className}`}>
           <p className="text-red-400 text-sm">
             {error || 'Failed to load item'}
           </p>
         </div>
-      </ClickableWrapper>
+      </div>
     );
   }
 

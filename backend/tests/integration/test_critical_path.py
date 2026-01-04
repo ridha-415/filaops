@@ -882,18 +882,59 @@ class TestCriticalPathWithServices:
         """Test that quote_conversion_service actually works"""
         from app.models.quote import Quote
         from app.models.product import Product
+        from app.models.material import MaterialType, Color, MaterialColor
         from app.services.quote_conversion_service import convert_quote_to_order
+
+        # Create material type and color for the quote
+        material_type = MaterialType(
+            code="PLA",
+            name="PLA Basic",
+            base_material="PLA",
+            process_type="FDM",
+            density=Decimal("1.24"),
+            base_price_per_kg=Decimal("25.00"),
+            price_multiplier=Decimal("1.0"),
+            active=True
+        )
+        db_session.add(material_type)
+
+        # Create color
+        color = Color(
+            code="BLK",
+            name="Black",
+            hex_code="#000000",
+            active=True
+        )
+        db_session.add(color)
+        db_session.flush()  # Get IDs for the junction table
+
+        # Link material type to color via MaterialColor junction
+        material_color = MaterialColor(
+            material_type_id=material_type.id,
+            color_id=color.id,
+            active=True
+        )
+        db_session.add(material_color)
+        db_session.commit()
 
         # Create a simple product
         product = create_test_product(
-            db_session, 
+            db_session,
             sku="SVC-TEST-001",
             selling_price=Decimal("50.00")
         )
 
+        # Create a shipping box product (required for quote validation)
+        box_product = create_test_product(
+            db_session,
+            sku="BOX-8x8x8",
+            name="8x8x8in box",
+            selling_price=Decimal("2.00")
+        )
+
         customer = create_test_user(db_session, account_type="customer")
 
-        # Create quote
+        # Create quote with all required fields for validation
         quote = Quote(
             user_id=customer.id,
             quote_number="Q-SVC-TEST-001",
@@ -909,6 +950,11 @@ class TestCriticalPathWithServices:
             expires_at=datetime.utcnow() + timedelta(days=30),
             file_format=".3mf",  # Required NOT NULL field
             file_size_bytes=1024000,
+            # Required for quote validation
+            dimensions_x=Decimal("100.0"),
+            dimensions_y=Decimal("100.0"),
+            dimensions_z=Decimal("50.0"),
+            material_grams=Decimal("25.0"),
         )
         db_session.add(quote)
         db_session.commit()

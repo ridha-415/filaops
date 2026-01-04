@@ -38,7 +38,10 @@ const PRO_FEATURES = [
 
 export default function ProFeaturesAnnouncement() {
   const [isVisible, setIsVisible] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
+  // Initialize from localStorage to avoid setState in effect
+  const [isDismissed, setIsDismissed] = useState(
+    () => localStorage.getItem("proFeaturesDismissed") === "true"
+  );
 
   useEffect(() => {
     // Check if user has dismissed this before
@@ -47,9 +50,8 @@ export default function ProFeaturesAnnouncement() {
       // Show after a short delay for better UX
       const timer = setTimeout(() => setIsVisible(true), 1000);
       return () => clearTimeout(timer);
-    } else {
-      setIsDismissed(true);
     }
+    // isDismissed is already initialized from localStorage
   }, []);
 
   const handleDismiss = (permanent = false) => {

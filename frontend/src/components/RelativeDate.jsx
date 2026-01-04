@@ -152,4 +152,5 @@ export default function RelativeDate({
 }
 
 // Export helper functions for custom formatting
+// eslint-disable-next-line react-refresh/only-export-components
 export { formatRelative, formatAbsolute };

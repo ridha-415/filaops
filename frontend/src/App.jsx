@@ -10,6 +10,7 @@ import AdminLayout from "./components/AdminLayout";
 import Setup from "./pages/Setup";
 import Onboarding from "./pages/Onboarding";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ApiContext = createContext(null);
 
 // Admin pages
@@ -54,7 +55,7 @@ export default function App() {
         getToken: () => localStorage.getItem("adminToken"),
         onUnauthorized: async () => {
           localStorage.removeItem("adminToken");
-          // optional: redirect to login
+          // eslint-disable-next-line react-hooks/immutability -- Redirect in callback, not during render
           window.location.href = "/admin/login";
         },
         onError: (err) => {

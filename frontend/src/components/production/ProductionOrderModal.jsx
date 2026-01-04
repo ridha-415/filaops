@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_URL } from '../../config/api';
-import { formatDuration, formatDate, formatTime } from '../../utils/formatting';
+import { formatDuration, formatDate } from '../../utils/formatting';
 import OperationCard from './OperationCard';
 import SkipOperationModal from './SkipOperationModal';
 import ShortageModal from './ShortageModal';
@@ -120,7 +120,7 @@ export default function ProductionOrderModal({
           setExpandedOpId(runningOp.id);
         }
       }
-    } catch (err) {
+    } catch { // err unused
       setError('Failed to load operations');
     } finally {
       setLoading(false);

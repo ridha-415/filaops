@@ -171,7 +171,7 @@ export function useResourceConflicts(resourceId, startTime, endTime) {
           throw new Error('Failed to check conflicts');
         }
         setError(null);
-      } catch (err) {
+      } catch {
         // If conflict check fails, assume no conflicts (endpoint may not exist)
         setConflicts([]);
         setError(null);
