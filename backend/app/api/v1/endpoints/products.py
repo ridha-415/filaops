@@ -20,6 +20,45 @@ from app.schemas.routing_operations import (
 router = APIRouter()
 logger = get_logger(__name__)
 
+def _product_has_transactions(db: Session, product_id: int) -> tuple[bool, str]:
+    """
+    Check if product has any transactional history that would prevent SKU changes.
+
+    SKU changes are blocked once a product has:
+    - Purchase order lines (PO history)
+    - Inventory transactions (receipt/issue history)
+    - Material lots (lot tracking history)
+
+    Returns:
+        tuple: (has_transactions: bool, reason: str)
+    """
+    from app.models.purchase_order import PurchaseOrderLine
+    from app.models.inventory import InventoryTransaction
+    from app.models.traceability import MaterialLot
+
+    # Check purchase order lines
+    po_lines = db.query(PurchaseOrderLine).filter(
+        PurchaseOrderLine.product_id == product_id
+    ).count()
+    if po_lines > 0:
+        return True, f"Product has {po_lines} purchase order line(s)"
+
+    # Check inventory transactions
+    inv_txns = db.query(InventoryTransaction).filter(
+        InventoryTransaction.product_id == product_id
+    ).count()
+    if inv_txns > 0:
+        return True, f"Product has {inv_txns} inventory transaction(s)"
+
+    # Check material lots
+    lots = db.query(MaterialLot).filter(
+        MaterialLot.product_id == product_id
+    ).count()
+    if lots > 0:
+        return True, f"Product has {lots} material lot(s)"
+
+    return False, ""
+
 class ProductCreate(BaseModel):
     """Create product request"""
     sku: str
@@ -234,6 +273,15 @@ async def update_product(
 
         # Check SKU uniqueness if changing
         if request.sku and request.sku != product.sku:
+            # Prevent SKU changes on products with transactional history
+            has_txns, reason = _product_has_transactions(db, id)
+            if has_txns:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot change SKU: {reason}. Create a new product instead."
+                )
+
+            # Check uniqueness
             existing = db.query(Product).filter(Product.sku == request.sku).first()
             if existing:
                 raise HTTPException(
