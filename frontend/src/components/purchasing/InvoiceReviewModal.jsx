@@ -139,7 +139,7 @@ export default function InvoiceReviewModal({
       }
 
       // Add JSON payload
-      const token = localStorage.getItem("auth_token");
+      const token = localStorage.getItem("adminToken");
       const response = await fetch(
         `${API_URL}/api/v1/purchase-orders/invoices/create-po`,
         {

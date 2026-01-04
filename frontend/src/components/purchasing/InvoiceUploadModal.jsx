@@ -73,7 +73,7 @@ export default function InvoiceUploadModal({
       }
       formData.append("use_vision", useVision.toString());
 
-      const token = localStorage.getItem("auth_token");
+      const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_URL}/api/v1/purchase-orders/invoices/parse`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
