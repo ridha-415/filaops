@@ -401,7 +401,7 @@ See the [README](README.md) for the full feature comparison.
 
 ## Next Steps
 
-1. **Set up your database** - See [GETTING_STARTED.md](GETTING_STARTED.md)
+1. **Set up your database** - See [getting-started.md](getting-started.md)
 2. **Add your products and BOMs** - Start with your top 5 products
 3. **Process a test order** - Full cycle from order to ship
 4. **Join the community** - [GitHub Discussions](https://github.com/Blb3D/filaops/discussions)
@@ -410,7 +410,7 @@ See the [README](README.md) for the full feature comparison.
 
 ## Getting Help
 
-- **Setup issues:** [GETTING_STARTED.md](GETTING_STARTED.md)
+- **Setup issues:** [getting-started.md](getting-started.md)
 - **API questions:** [API Documentation](http://localhost:8000/docs)
 - **Bug reports:** [GitHub Issues](https://github.com/Blb3D/filaops/issues)
 - **Feature requests:** [GitHub Discussions](https://github.com/Blb3D/filaops/discussions)

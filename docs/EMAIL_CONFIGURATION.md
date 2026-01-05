@@ -291,10 +291,10 @@ If you want to test the system without sending real emails:
 - Check backend logs for detailed error messages
 - Verify SMTP settings with your email provider's documentation
 - Test SMTP connection with a mail client first
-- See [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) for more help
+- See [troubleshooting.md](troubleshooting.md) for more help
 
 ---
 
 **Last Updated:** 2025-01-XX  
-**Related Docs:** [GETTING_STARTED.md](../GETTING_STARTED.md), [TROUBLESHOOTING.md](../TROUBLESHOOTING.md)
+**Related Docs:** [getting-started.md](getting-started.md), [troubleshooting.md](troubleshooting.md)
 

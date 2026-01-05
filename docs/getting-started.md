@@ -10,10 +10,11 @@ This guide provides an overview of getting started with FilaOps. For detailed, p
 
 Choose your platform for complete step-by-step installation instructions:
 
-- **[Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows installation with PostgreSQL
-- **[macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS, Linux, and SSH setup with PostgreSQL
+- **[Windows Setup Guide](setup/windows.md)** - Complete Windows installation with PostgreSQL
+- **[macOS/Linux Setup Guide](setup/linux-macos.md)** - Complete macOS, Linux, and SSH setup with PostgreSQL
+- **[Docker Setup Guide](setup/docker.md)** - Quick start with Docker (no Python/Node install needed)
 
-**Prerequisites:**
+**Prerequisites (for native install):**
 - Python 3.11+
 - PostgreSQL 16+
 - Node.js 18+
@@ -27,7 +28,7 @@ After setup, open **http://localhost:5173** — the **Setup Wizard** will guide 
 ### Recent Improvements
 
 **PostgreSQL-Only Architecture**
-- Simplified setup (no Docker required)
+- Simplified setup (no Docker required for native install)
 - Faster performance with native database drivers
 - Easier debugging and customization
 
@@ -43,7 +44,7 @@ After setup, open **http://localhost:5173** — the **Setup Wizard** will guide 
 - Improved scheduling, scrap, and update modals
 - Instant hot reload during development
 
-See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)** for complete details.
+See **[archive/ANNOUNCEMENT_POSTGRES_MIGRATION.md](archive/ANNOUNCEMENT_POSTGRES_MIGRATION.md)** for complete details.
 
 ---
 
@@ -69,7 +70,7 @@ See **[ANNOUNCEMENT_POSTGRES_MIGRATION.md](ANNOUNCEMENT_POSTGRES_MIGRATION.md)**
 3. **Create a BOM** - Link your finished good to the filament it uses
 4. **Create a test order** - See how the workflow works
 
-For a detailed explanation of how everything connects, see **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**.
+For a detailed explanation of how everything connects, see **[how-it-works.md](how-it-works.md)**.
 
 ---
 
@@ -98,10 +99,10 @@ Another application is using that port. Either:
 - Ensure frontend `.env` or configuration points to correct API URL
 
 ### Still stuck?
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Detailed troubleshooting guide
-- **[FAQ.md](FAQ.md)** - Common questions and answers
-- **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows setup guide
-- **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS/Linux setup guide
+- **[troubleshooting.md](troubleshooting.md)** - Detailed troubleshooting guide
+- **[faq.md](faq.md)** - Common questions and answers
+- **[setup/windows.md](setup/windows.md)** - Complete Windows setup guide
+- **[setup/linux-macos.md](setup/linux-macos.md)** - Complete macOS/Linux setup guide
 - [GitHub Issues](https://github.com/Blb3D/filaops/issues) - Report bugs
 - [GitHub Discussions](https://github.com/Blb3D/filaops/discussions) - Ask questions
 
@@ -109,11 +110,12 @@ Another application is using that port. Either:
 
 ## 📖 Need More Details?
 
-- **[FilaOps_Zero-to-Running_Windows.md](FilaOps_Zero-to-Running_Windows.md)** - Complete Windows installation guide
-- **[FilaOps_Zero-to-Running_macOS_Linux_SSH.md](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)** - Complete macOS/Linux/SSH installation guide
-- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - System overview and workflows
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Detailed troubleshooting for common issues
-- **[FAQ.md](FAQ.md)** - Frequently asked questions
+- **[setup/windows.md](setup/windows.md)** - Complete Windows installation guide
+- **[setup/linux-macos.md](setup/linux-macos.md)** - Complete macOS/Linux/SSH installation guide
+- **[setup/docker.md](setup/docker.md)** - Docker installation guide
+- **[how-it-works.md](how-it-works.md)** - System overview and workflows
+- **[troubleshooting.md](troubleshooting.md)** - Detailed troubleshooting for common issues
+- **[faq.md](faq.md)** - Frequently asked questions
 
 ---
 

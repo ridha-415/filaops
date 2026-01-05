@@ -271,7 +271,7 @@ On a fresh install, you'll see the Setup Wizard:
 
 You'll be logged in automatically and can start using FilaOps!
 
-> **Note:** If you see the login screen instead of the setup wizard, your database may have existing data. See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#stuck-at-login-screen) for help.
+> **Note:** If you see the login screen instead of the setup wizard, your database may have existing data. See [troubleshooting.md](troubleshooting.md) for help.
 
 ---
 

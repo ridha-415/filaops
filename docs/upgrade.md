@@ -442,14 +442,14 @@ If you previously used Docker and want to migrate to native installation:
    docker-compose exec db pg_dump -U filaops filaops > database_export.sql
    ```
 
-2. **Install PostgreSQL natively** (see INSTALL.md)
+2. **Install PostgreSQL natively** (see [install.md](install.md))
 
 3. **Import your database:**
    ```bash
    psql -U filaops_user -d filaops < database_export.sql
    ```
 
-4. **Follow native installation guide** (INSTALL.md)
+4. **Follow native installation guide** ([install.md](install.md))
 
 5. **Update configuration:**
    - Copy `.env` settings from Docker to `backend/.env`
@@ -499,7 +499,7 @@ alembic current  # Shows current revision
 
 **Still having issues?**
 
-1. Check the [Troubleshooting Guide](./TROUBLESHOOTING.md)
+1. Check the [Troubleshooting Guide](troubleshooting.md)
 2. Search [GitHub Issues](https://github.com/Blb3D/filaops/issues)
 3. Ask in [GitHub Discussions](https://github.com/Blb3D/filaops/discussions)
 4. Open a new issue with:
