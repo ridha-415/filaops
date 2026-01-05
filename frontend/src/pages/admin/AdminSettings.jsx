@@ -1119,34 +1119,60 @@ const AdminSettings = () => {
                 )}
 
                 {anthropicStatus.installed && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      name="ai_api_key"
-                      value={aiForm.ai_api_key}
-                      onChange={handleAiFormChange}
-                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
-                      placeholder={
-                        aiSettings?.ai_api_key_set
-                          ? "••••••••••••••• (key is set)"
-                          : "sk-ant-..."
-                      }
-                    />
-                    <p className="text-sm text-gray-400 mt-1">
-                      Get your API key from{" "}
-                    <a
-                      href="https://console.anthropic.com/account/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:underline"
-                    >
-                      console.anthropic.com
-                    </a>
-                  </p>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        name="ai_api_key"
+                        value={aiForm.ai_api_key}
+                        onChange={handleAiFormChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                        placeholder={
+                          aiSettings?.ai_api_key_set
+                            ? "••••••••••••••• (key is set)"
+                            : "sk-ant-..."
+                        }
+                      />
+                      <p className="text-sm text-gray-400 mt-1">
+                        Get your API key from{" "}
+                        <a
+                          href="https://console.anthropic.com/account/keys"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline"
+                        >
+                          console.anthropic.com
+                        </a>
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-1">
+                        Model
+                      </label>
+                      <select
+                        name="ai_anthropic_model"
+                        value={aiForm.ai_anthropic_model}
+                        onChange={handleAiFormChange}
+                        className="w-full md:w-96 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      >
+                        <option value="claude-haiku-3-5-20241022">
+                          Haiku 3.5 - Fastest (~$0.001/doc)
+                        </option>
+                        <option value="claude-sonnet-4-20250514">
+                          Sonnet 4 - Balanced (~$0.004/doc)
+                        </option>
+                        <option value="claude-opus-4-5-20251101">
+                          Opus 4.5 - Best Quality (~$0.02/doc)
+                        </option>
+                      </select>
+                      <p className="text-sm text-gray-400 mt-1">
+                        Cost estimates based on ~2,000 token invoices. Opus provides best extraction accuracy.
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             )}

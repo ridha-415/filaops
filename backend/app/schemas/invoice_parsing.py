@@ -69,6 +69,10 @@ class ParsedInvoice(BaseModel):
     warnings: List[str] = []
     raw_text: Optional[str] = None  # For debugging
 
+    # AI model info
+    ai_model: Optional[str] = None  # Model used for parsing (e.g., "claude-opus-4-5-20251101")
+    ai_provider: Optional[str] = None  # "anthropic", "ollama", or "basic"
+
 
 class InvoiceParseRequest(BaseModel):
     """Request to parse an invoice file"""

@@ -174,9 +174,26 @@ export default function InvoiceReviewModal({
         <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-shrink-0">
           <div>
             <h3 className="text-lg font-semibold text-white">Review Parsed Invoice</h3>
-            <p className="text-gray-400 text-sm">
-              {parsedInvoice.line_count} items parsed, {parsedInvoice.matched_count} matched
-            </p>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-gray-400">
+                {parsedInvoice.line_count} items parsed, {parsedInvoice.matched_count} matched
+              </span>
+              {parsedInvoice.ai_provider && (
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  parsedInvoice.ai_provider === 'anthropic'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : parsedInvoice.ai_provider === 'ollama'
+                    ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                    : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                }`}>
+                  {parsedInvoice.ai_provider === 'anthropic' && parsedInvoice.ai_model
+                    ? parsedInvoice.ai_model.replace('claude-', '').replace(/-\d+$/, '')
+                    : parsedInvoice.ai_provider === 'ollama' && parsedInvoice.ai_model
+                    ? `Ollama: ${parsedInvoice.ai_model}`
+                    : parsedInvoice.ai_provider}
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

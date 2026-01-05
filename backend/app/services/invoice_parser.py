@@ -36,21 +36,23 @@ logger = get_logger(__name__)
 
 
 # Claude API prompt for invoice extraction
-INVOICE_EXTRACTION_PROMPT = '''You are an invoice parser. Extract structured data from this invoice.
+INVOICE_EXTRACTION_PROMPT = '''You are an expert invoice parser. Extract ALL structured data from this invoice.
+
+CRITICAL: You must extract EVERY line item from the invoice. Do not stop early or skip items.
 
 Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 {
-  "vendor_name": "Company Name from invoice",
-  "invoice_number": "INV-12345 or similar",
+  "vendor_name": "Company Name from invoice header",
+  "invoice_number": "Invoice number (INV-12345, #12345, etc.)",
   "invoice_date": "YYYY-MM-DD or null",
   "due_date": "YYYY-MM-DD or null",
   "lines": [
     {
       "line_number": 1,
-      "vendor_sku": "Part number/SKU exactly as shown",
-      "description": "Item description",
+      "vendor_sku": "Item/Part/SKU number exactly as shown",
+      "description": "Full item description",
       "quantity": 10.00,
-      "unit": "EA or KG or LB etc",
+      "unit": "EA, KG, LB, BOX, CASE, etc.",
       "unit_cost": 5.99,
       "line_total": 59.90
     }
@@ -61,25 +63,31 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
   "total": 113.00
 }
 
-Rules:
-- Extract vendor SKU/part numbers exactly as shown (case-sensitive)
-- Preserve original units (don't convert)
-- Use null for missing fields, not empty strings
-- Quantities and costs should be numbers, not strings
-- If multiple pages, include all line items
+IMPORTANT RULES:
+1. Extract ALL line items - count them carefully, do not miss any
+2. "quantity" = the quantity ORDERED or SHIPPED (not backorder qty)
+3. "unit_cost" = UNIT PRICE per single item (not extended/line total)
+4. "line_total" = quantity × unit_cost (the extended price)
+5. SKU/part numbers: copy exactly as shown (e.g., "S-22528BL", "H-3677")
+6. For table invoices: QTY column is quantity, UNIT PRICE column is unit_cost
+7. Ignore backorder quantities - only use shipped/ordered quantities
+8. Include items even if they have $0.00 price (free items, samples)
+9. Use null for missing fields, never empty strings
+10. All numbers must be numeric values, not strings
 '''
 
 
-def _get_anthropic_client():
+def _get_anthropic_client(api_key: str = None):
     """Get Anthropic client, raising clear error if not configured."""
     try:
         import anthropic
     except ImportError:
         raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    # Use provided key or fall back to env var
+    api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY environment variable not set")
+        raise RuntimeError("No Anthropic API key configured")
 
     return anthropic.Anthropic(api_key=api_key)
 
@@ -214,10 +222,40 @@ def _parse_pdf_basic(text: str) -> dict:
     return result
 
 
-def _is_api_available() -> bool:
-    """Check if Anthropic API is configured and available."""
+def _is_api_available(db=None) -> bool:
+    """Check if Anthropic API is configured and available.
+
+    Checks: 1) Database settings, 2) Environment variable
+    """
+    # Check database settings first
+    if db:
+        try:
+            from app.models.company_settings import CompanySettings
+            settings = db.query(CompanySettings).first()
+            if settings and settings.ai_provider == "anthropic" and settings.ai_api_key:
+                return True
+        except Exception as e:
+            logger.warning(f"Could not check DB for API key: {e}")
+
+    # Fall back to env var
     api_key = os.getenv("ANTHROPIC_API_KEY")
     return bool(api_key and len(api_key) > 10)
+
+
+def _get_api_key(db=None) -> str:
+    """Get Anthropic API key from database settings or environment."""
+    # Check database settings first
+    if db:
+        try:
+            from app.models.company_settings import CompanySettings
+            settings = db.query(CompanySettings).first()
+            if settings and settings.ai_api_key:
+                return settings.ai_api_key
+        except Exception as e:
+            logger.warning(f"Could not read API key from settings: {e}")
+
+    # Fall back to env var
+    return os.getenv("ANTHROPIC_API_KEY", "")
 
 
 def _is_ollama_available() -> bool:
@@ -235,6 +273,30 @@ def _get_ollama_model() -> str:
     """Get the preferred Ollama model for invoice parsing."""
     # User can override via env var, default to llama3.2 (good balance of speed/quality)
     return os.getenv("OLLAMA_MODEL", "llama3.2")
+
+
+def _get_anthropic_model(db=None) -> str:
+    """Get the preferred Anthropic model for invoice parsing.
+
+    Checks: 1) Database settings, 2) Environment variable, 3) Default (Sonnet 4)
+
+    Available models:
+    - claude-haiku-3-5-20241022: Fastest/cheapest ($0.25/$1.25 per 1M tokens)
+    - claude-sonnet-4-20250514: Balanced (default, $3/$15 per 1M tokens)
+    - claude-opus-4-5-20251101: Best quality ($15/$75 per 1M tokens)
+    """
+    # Try database settings first
+    if db:
+        try:
+            from app.models.company_settings import CompanySettings
+            settings = db.query(CompanySettings).first()
+            if settings and settings.ai_anthropic_model:
+                return settings.ai_anthropic_model
+        except Exception as e:
+            logger.warning(f"Could not read anthropic model from settings: {e}")
+
+    # Fall back to env var or default
+    return os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 
 
 def _parse_with_ollama(text: str) -> dict:
@@ -351,12 +413,13 @@ def _parse_csv_invoice(csv_bytes: bytes) -> dict:
     }
 
 
-def _parse_with_claude(text: str) -> dict:
+def _parse_with_claude(text: str, model: str = None, api_key: str = None) -> dict:
     """Send text to Claude for structured extraction."""
-    client = _get_anthropic_client()
+    client = _get_anthropic_client(api_key)
+    model = model or _get_anthropic_model()
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=4096,
         messages=[
             {
@@ -382,15 +445,16 @@ def _parse_with_claude(text: str) -> dict:
     return json.loads(response_text)
 
 
-def _parse_with_claude_vision(pdf_bytes: bytes) -> dict:
+def _parse_with_claude_vision(pdf_bytes: bytes, model: str = None, api_key: str = None) -> dict:
     """Send PDF as image to Claude for extraction (for scanned invoices)."""
-    client = _get_anthropic_client()
+    client = _get_anthropic_client(api_key)
+    model = model or _get_anthropic_model()
 
     # Encode PDF as base64
     pdf_b64 = base64.standard_b64encode(pdf_bytes).decode('utf-8')
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model,
         max_tokens=4096,
         messages=[
             {
@@ -551,13 +615,16 @@ def parse_invoice(
     """
     start_time = time.time()
     warnings = []
+    ai_provider = None
+    ai_model = None
 
     # Determine file type
     ext = filename.lower().split('.')[-1] if '.' in filename else ''
 
     try:
         if ext == 'csv':
-            # Direct CSV parsing
+            # Direct CSV parsing (no AI needed)
+            ai_provider = "csv"
             raw_data = _parse_csv_invoice(file_bytes)
             raw_text = file_bytes.decode('utf-8-sig')[:2000]
 
@@ -574,30 +641,38 @@ def parse_invoice(
             # 2. Ollama (good quality, free/local)
             # 3. Basic regex (limited quality, always available)
 
-            if _is_api_available():
+            if _is_api_available(db):
+                ai_provider = "anthropic"
+                ai_model = _get_anthropic_model(db)
+                api_key = _get_api_key(db)
                 if use_vision:
                     # Use Claude vision for scanned/image PDFs
-                    raw_data = _parse_with_claude_vision(file_bytes)
+                    raw_data = _parse_with_claude_vision(file_bytes, model=ai_model, api_key=api_key)
                     raw_text = "(PDF processed via vision)"
                 else:
                     # Use Claude for text extraction
-                    raw_data = _parse_with_claude(text)
-                logger.info("Using Anthropic Claude for invoice parsing")
+                    raw_data = _parse_with_claude(text, model=ai_model, api_key=api_key)
+                logger.info(f"Using Anthropic Claude ({ai_model}) for invoice parsing")
 
             elif _is_ollama_available():
+                ai_provider = "ollama"
+                ai_model = _get_ollama_model()
                 # Use local Ollama - free AI parsing
                 try:
                     raw_data = _parse_with_ollama(text)
-                    model = _get_ollama_model()
-                    logger.info(f"Using Ollama ({model}) for invoice parsing")
+                    logger.info(f"Using Ollama ({ai_model}) for invoice parsing")
                 except Exception as e:
                     # Ollama failed, fall back to basic
                     logger.warning(f"Ollama parsing failed: {e}, falling back to basic parser")
                     warnings.append("AI parsing failed. Using basic parsing - some fields may need manual entry.")
                     raw_data = _parse_pdf_basic(text)
+                    ai_provider = "basic"
+                    ai_model = None
 
             else:
                 # Fallback to basic regex parsing (no AI cost)
+                ai_provider = "basic"
+                ai_model = None
                 warnings.append("Using basic parsing (no AI configured). Some fields may need manual entry.")
                 raw_data = _parse_pdf_basic(text)
                 logger.info("Using basic PDF parser - no AI service available")
@@ -656,4 +731,6 @@ def parse_invoice(
         unmapped_count=unmapped_count,
         warnings=warnings,
         raw_text=raw_text,
+        ai_provider=ai_provider,
+        ai_model=ai_model,
     )

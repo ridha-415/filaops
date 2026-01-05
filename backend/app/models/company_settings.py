@@ -78,6 +78,8 @@ class CompanySettings(Base):
     ai_ollama_url = Column(String(255), nullable=True, default="http://localhost:11434")
     # Ollama model name (default: llama3.2)
     ai_ollama_model = Column(String(100), nullable=True, default="llama3.2")
+    # Anthropic model name (default: claude-sonnet-4-20250514)
+    ai_anthropic_model = Column(String(100), nullable=True, default="claude-sonnet-4-20250514")
     # Block external AI services (force local-only for data privacy)
     external_ai_blocked = Column(Boolean, nullable=False, default=False)
 
