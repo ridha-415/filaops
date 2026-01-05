@@ -85,12 +85,16 @@ cd filaops
 ## 4) Create `.env` (repo root)
 
 ```bash
-cat > .env <<'EOF'
+# Generate a secret key first
+python3.11 -c "import secrets; print(secrets.token_hex(32))"
+
+cat > .env <<EOF
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=filaops
 DB_USER=$USER
 DB_PASSWORD=
+SECRET_KEY=paste-your-generated-key-here
 ENVIRONMENT=production
 DEBUG=false
 EOF
@@ -205,12 +209,16 @@ cd filaops
 ## 4) Create `.env` (repo root)
 
 ```bash
+# Generate a secret key first
+python3.11 -c "import secrets; print(secrets.token_hex(32))"
+
 cat > .env <<EOF
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=filaops
 DB_USER=$USER
 DB_PASSWORD=
+SECRET_KEY=paste-your-generated-key-here
 ENVIRONMENT=production
 DEBUG=false
 EOF
@@ -304,12 +312,16 @@ sudo apt install -y python3.11 python3.11-venv python3-pip   postgresql postgres
 git clone https://github.com/Blb3D/filaops.git
 cd filaops
 
+# Generate a secret key
+python3.11 -c "import secrets; print(secrets.token_hex(32))"
+
 cat > .env <<EOF
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=filaops
 DB_USER=$USER
 DB_PASSWORD=
+SECRET_KEY=paste-your-generated-key-here
 ENVIRONMENT=production
 DEBUG=false
 EOF

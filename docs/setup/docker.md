@@ -92,7 +92,7 @@ SECRET_KEY=your-super-secret-key-change-this-in-production
 # Application
 ENVIRONMENT=production
 DEBUG=false
-FILAOPS_TIER=open
+TIER=open
 ```
 
 > ⚠️ **Important:** Change `DB_PASSWORD` and `SECRET_KEY` before deploying to production!
@@ -193,7 +193,7 @@ Your data is stored in Docker volumes and persists across restarts:
 
 | Volume | Contents |
 |--------|----------|
-| `filaops_postgres_data` | PostgreSQL database files |
+| `filaops_pgdata` | PostgreSQL database files |
 
 **Backup your database:**
 ```bash
@@ -433,8 +433,8 @@ For production, consider:
 4. **Create your first BOM** for a product
 
 **Need help?**
-- [Troubleshooting Guide](TROUBLESHOOTING.md)
-- [FAQ](FAQ.md)
+- [Troubleshooting Guide](../troubleshooting.md)
+- [FAQ](../faq.md)
 - [Discord Community](https://discord.gg/FAhxySnRwa)
 
 ---

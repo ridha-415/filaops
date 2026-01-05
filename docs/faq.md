@@ -17,11 +17,11 @@ cd filaops
 cp .env.example .env
 docker-compose up --build
 ```
-Only requires Docker Desktop. See **[Docker Setup Guide](FilaOps_Zero-to-Running_Docker.md)**.
+Only requires Docker Desktop. See **[Docker Setup Guide](setup/docker.md)**.
 
 **Option 2: Native Installation**
-- **[Windows Setup Guide](FilaOps_Zero-to-Running_Windows.md)**
-- **[macOS/Linux Setup Guide](FilaOps_Zero-to-Running_macOS_Linux_SSH.md)**
+- **[Windows Setup Guide](setup/windows.md)**
+- **[macOS/Linux Setup Guide](setup/linux-macos.md)**
 
 Native installation requires Python 3.11+, Node.js 18+, and PostgreSQL 16+.
 
@@ -157,8 +157,8 @@ Yes! FilaOps supports CSV import for:
 - **Materials** - Filament inventory with template download
 
 **See:** 
-- [docs/MARKETPLACE_IMPORT_GUIDE.md](docs/MARKETPLACE_IMPORT_GUIDE.md) - Complete import guide
-- [docs/SQUARESPACE_IMPORT_GUIDE.md](docs/SQUARESPACE_IMPORT_GUIDE.md) - Squarespace-specific guide
+- [MARKETPLACE_IMPORT_GUIDE.md](MARKETPLACE_IMPORT_GUIDE.md) - Complete import guide
+- [SQUARESPACE_IMPORT_GUIDE.md](SQUARESPACE_IMPORT_GUIDE.md) - Squarespace-specific guide
 
 ---
 
@@ -235,7 +235,7 @@ Each combination gets its own SKU (e.g., `MAT-PLA-PLA_Basic-Red`).
 5. **Complete Production** - Enter quantities (good/bad)
 6. **Create Shipment** - Package and ship to customer
 
-**See:** [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for detailed workflow.
+**See:** [how-it-works.md](how-it-works.md) for detailed workflow.
 
 ---
 
@@ -277,7 +277,7 @@ Yes! The Production page shows:
 | API Access | ❌ | ✅ | ✅ |
 | Priority Support | ❌ | ✅ | ✅ |
 
-**See:** [README.md](README.md) for full feature comparison.
+**See:** [README.md](../README.md) for full feature comparison.
 
 ---
 
@@ -292,7 +292,7 @@ Yes! The Production page shows:
 - Cannot be used to offer competing SaaS
 - Converts to Apache 2.0 license after 4 years
 
-**See:** [LICENSE](LICENSE) for full details.
+**See:** [LICENSE](../LICENSE) for full details.
 
 ---
 
@@ -369,7 +369,7 @@ Or use pgAdmin or other PostgreSQL management tools for GUI-based backups.
 - Add features
 - Customize the UI
 
-**Contributions welcome!** See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Contributions welcome!** See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 **Pro/Enterprise:** Customization services available. Contact for details.
 
@@ -385,7 +385,7 @@ Or use pgAdmin or other PostgreSQL management tools for GUI-based backups.
 4. Check your `.env` file has correct database credentials
 5. Verify database exists: `psql -U postgres -c "SELECT 1 FROM pg_database WHERE datname='filaops';"`
 
-**See:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed help.
+**See:** [troubleshooting.md](troubleshooting.md) for detailed help.
 
 ---
 
@@ -396,7 +396,7 @@ Common issues:
 2. **Missing required fields** - SKU, Name, or Price might be missing
 3. **Invalid data** - Check for special characters or formatting issues
 
-**See:** [docs/MARKETPLACE_IMPORT_GUIDE.md](docs/MARKETPLACE_IMPORT_GUIDE.md) for solutions.
+**See:** [MARKETPLACE_IMPORT_GUIDE.md](MARKETPLACE_IMPORT_GUIDE.md) for solutions.
 
 ---
 
@@ -408,7 +408,7 @@ This usually means:
 3. Port conflict (something else using port 8000 or 5173)
 4. CORS configuration issue (check backend CORS settings)
 
-**See:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions.
+**See:** [troubleshooting.md](troubleshooting.md) for solutions.
 
 ---
 
@@ -416,7 +416,7 @@ This usually means:
 
 ### Where can I get help?
 
-1. **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Detailed troubleshooting guide
+1. **[troubleshooting.md](troubleshooting.md)** - Detailed troubleshooting guide
 2. **[GitHub Issues](https://github.com/Blb3D/filaops/issues)** - Report bugs
 3. **[GitHub Discussions](https://github.com/Blb3D/filaops/discussions)** - Ask questions
 
@@ -444,8 +444,8 @@ Yes! Use [GitHub Discussions](https://github.com/Blb3D/filaops/discussions) to:
 
 ## Still Have Questions?
 
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Detailed troubleshooting
-- **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)** - How FilaOps works
+- **[troubleshooting.md](troubleshooting.md)** - Detailed troubleshooting
+- **[how-it-works.md](how-it-works.md)** - How FilaOps works
 - **[GitHub Discussions](https://github.com/Blb3D/filaops/discussions)** - Community Q&A
 
 ---

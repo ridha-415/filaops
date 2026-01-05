@@ -1,68 +1,65 @@
 # FilaOps — Zero-to-Running (Windows)
 
-This guide gets a brand‑new Windows machine from **nothing** to a **working FilaOps UI + API** with the fewest “gotchas”.
-It assumes **PowerShell 5** (built into Windows), but works in PowerShell 7 too.
+This guide gets a brand-new Windows machine from **nothing** to a **working FilaOps UI + API**.
 
-**You’ll know you’re done when:**
+**You'll know you're done when:**
 - Backend health check returns: `{"status":"healthy"}`
-- Frontend opens in your browser and can talk to the API
+- Frontend opens in your browser at http://localhost:5173
+- Setup Wizard appears to create your admin account
 
 ---
 
-## Quick start (copy/paste)
-
-> **Tip:** Always run these from the **repo root**: `C:\repos\filaops`
+## Quick Start (copy/paste)
 
 ```powershell
+# Clone the repo
 cd C:\repos
 git clone https://github.com/Blb3D/filaops.git
-cd .\filaops
+cd filaops
 
+# Create environment file
+cp .env.example .env
+# Edit .env with your database password and a secure SECRET_KEY
+
+# Allow scripts to run
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\install.ps1
-.\install-frontend.ps1
 
+# Start everything (two windows will open)
 .\start-all.ps1
 ```
 
 - Backend: http://localhost:8000/health
 - API docs: http://localhost:8000/docs  
-- Frontend (most common): http://localhost:5173 (Vite) or http://localhost:3000 (Next/CRA)
+- Frontend: http://localhost:5173
 
 ---
 
 ## 1) Prerequisites (install once)
 
-Install these system‑wide **one time**:
+Install these system-wide **one time**:
 
-1) **Git**  
-   Download + install (defaults are fine): https://git-scm.com/download/win
+| Software | Download | Notes |
+|----------|----------|-------|
+| **Git** | https://git-scm.com/download/win | Defaults are fine |
+| **Python 3.11+** | https://www.python.org/downloads/ | ✅ Check "Add Python to PATH" |
+| **PostgreSQL 16+** | https://www.postgresql.org/download/windows/ | Note your password! |
+| **Node.js 18+** | https://nodejs.org/en/download | Or: `winget install OpenJS.NodeJS.LTS` |
 
-2) **Python 3.11 (64‑bit)**  
-   Download + install: https://www.python.org/downloads/release/python-3119/  
-   ✅ During install, check **“Add Python to PATH”**.
-
-3) **PostgreSQL 16 or 17**  
-   Download + install: https://www.postgresql.org/download/windows/  
-   - Keep defaults
-   - Note the **superuser** (`postgres`) and the **password** you choose
-   - Make sure the Postgres service is running after install
-
-4) **Node.js 18+ (for the frontend UI)**  
-   Download: https://nodejs.org/en/download  
-   Or with winget:
-   ```powershell
-   winget install OpenJS.NodeJS.LTS
-   ```
+**Verify installation** (open new PowerShell after installing):
+```powershell
+python --version   # Python 3.11.x or higher
+node --version     # v18.x.x or higher
+git --version      # git version 2.x.x
+```
 
 ---
 
-## 2) Clone the repo
+## 2) Clone the Repository
 
 ```powershell
 cd C:\repos
 git clone https://github.com/Blb3D/filaops.git
-cd .\filaops
+cd filaops
 ```
 
 Already cloned? Update it:
@@ -72,468 +69,199 @@ git pull
 
 ---
 
-## 3) Configure environment (one time)
+## 3) Configure Environment
 
-Create a minimal `.env` in the repo root:
+Copy the example and edit it:
 
 ```powershell
-@'
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=filaops
-DB_USER=postgres
-DB_PASSWORD=Admin
-ENVIRONMENT=production
-DEBUG=false
-# Optional: set true only if you plan to connect Google Drive
-ENABLE_GOOGLE_DRIVE=false
-'@ | Set-Content -Encoding UTF8 .\.env
+cp .env.example .env
+notepad .env
 ```
 
-> If your Postgres password isn’t `Admin`, replace it in `DB_PASSWORD`.
+**Required changes in `.env`:**
 
-**Sanity check (optional):** confirm the file exists
+```bash
+# Set your PostgreSQL password (the one you chose during install)
+DB_PASSWORD=YourPostgresPassword
+
+# Generate a secure secret key (REQUIRED for security)
+# Run this in PowerShell to generate one:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=paste-your-generated-key-here
+```
+
+**Generate SECRET_KEY:**
 ```powershell
-Get-Content .\.env
+python -c "import secrets; print(secrets.token_hex(32))"
 ```
+
+Copy the output and paste it as your `SECRET_KEY` value.
 
 ---
 
-## 4) Install & initialize the backend (one command)
+## 4) Create the Database
 
-This script:
-- creates a private Python virtual environment in `backend\venv\`
-- installs backend dependencies
-- runs DB migrations (`alembic upgrade head`)
+Open PowerShell and run:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\install.ps1
+# Set your postgres password for this session
+$env:PGPASSWORD = "YourPostgresPassword"
+
+# Create the database (safe to run multiple times)
+psql -h localhost -U postgres -c "CREATE DATABASE filaops"
 ```
 
-**Success looks like:**
-- venv created at `backend\venv\`
-- migration output ends without errors
+If `psql` isn't found, add PostgreSQL to your PATH or use pgAdmin to create the database.
 
 ---
 
-## 5) Start the backend API
-
-From the **repo root**:
-
-```powershell
-.\start-backend.ps1
-```
-
-Backend runs at:
-- http://localhost:8000
-
-**Health check**
-- Open in browser: http://localhost:8000/health  
-  Expect:
-```json
-{"status":"healthy"}
-```
-
-**API docs**
-- http://localhost:8000/docs
-
----
-
-## 6) First-run admin setup
-
-If the logs mention first‑run setup, open:
-
-- http://localhost:8000/api/v1/auth/setup
-
-Create the initial admin user.
-
-> If your build exposes a UI route like `/setup`, use that UI instead.
-
----
-
-## 7) Install the frontend UI (one time per clone)
-
-From the **repo root**:
-
-```powershell
-.\install-frontend.ps1
-```
-
-This installs Node dependencies inside `frontend\`.
-
-> **Note:** `start-frontend.ps1` will automatically install dependencies if they're missing, so this step is optional. However, running `install-frontend.ps1` first ensures everything is ready before starting.
-
----
-
-## 8) Start the frontend UI
-
-From the **repo root**:
-
-```powershell
-.\start-frontend.ps1
-```
-
-The script will automatically check for and install dependencies if needed, then start the dev server.
-
-Then open the URL printed by the dev server. Common defaults:
-- Vite: http://localhost:5173
-- Next.js / CRA: http://localhost:3000
-
-**If the UI loads but can't reach the API**, jump to **Troubleshooting → Frontend can't talk to backend**.
-
----
-
-## 9) One command to launch everything
-
-If you want two windows (backend + frontend):
-
-```powershell
-.\start-all.ps1
-```
-
----
-
-## Everyday workflow
+## 5) Start FilaOps
 
 From the repo root:
 
-- Start everything:
-  ```powershell
-  .\start-all.ps1
-  ```
-- Start only backend:
-  ```powershell
-  .\start-backend.ps1
-  ```
-- Start only frontend:
-  ```powershell
-  .\start-frontend.ps1
-  ```
-- Stop: press **Ctrl + C** in the window that’s running the server.
-
----
-
-## Optional: Verify script (preflight + DB ping + start)
-
 ```powershell
-cd C:\repos\filaops\backend
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\start-all.ps1
 ```
 
-This:
-- activates the venv
-- checks critical imports
-- pings the DB
-- starts Uvicorn on :8000
+This opens two PowerShell windows:
+- **Backend** - Creates venv, installs dependencies, runs migrations, starts API
+- **Frontend** - Installs npm packages, starts Vite dev server
 
----
+**First run takes 2-3 minutes** while dependencies install.
 
-## Optional: Google Drive integration
-
-Disabled by default. To enable later:
-
-1) Install Google libs into the venv:
-```powershell
-.\backend\venv\Scripts\pip.exe install google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
+Watch for these success indicators:
 ```
-
-2) In `.env`:
-```
-ENABLE_GOOGLE_DRIVE=true
-```
-
-3) Restart backend.
-
----
-
-# Scripts to add (repo root)
-
-If these scripts already exist in your repo, you can skip this section.  
-If not, create these files at the repo root.
-
-## `install-frontend.ps1`
-
-```powershell
-# install-frontend.ps1 (PowerShell 5+)
-$ErrorActionPreference = "Stop"
-
-Write-Host "[frontend] Installing frontend deps..." -ForegroundColor Cyan
-
-# 1) sanity checks
-$frontendDir = Join-Path $PSScriptRoot "frontend"
-if (-not (Test-Path $frontendDir)) {
-  Write-Host "[frontend] 'frontend' folder not found. Skipping." -ForegroundColor Yellow
-  exit 0
-}
-
-# 2) ensure Node is available
-$node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) {
-  Write-Host "[frontend] Node.js not found on PATH." -ForegroundColor Yellow
-  Write-Host "          Please install Node 18+ from https://nodejs.org/en/download" -ForegroundColor Yellow
-  Write-Host "          (Or install with winget: winget install OpenJS.NodeJS.LTS)" -ForegroundColor Yellow
-  exit 1
-}
-
-# 3) install
-Push-Location $frontendDir
-try {
-  if (Test-Path "package-lock.json") {
-    npm ci
-  } else {
-    npm install
-  }
-  Write-Host "[frontend] Dependencies installed." -ForegroundColor Green
-} finally {
-  Pop-Location
-}
-```
-
-## `start-frontend.ps1`
-
-```powershell
-# start-frontend.ps1 (PowerShell 5+)
-$ErrorActionPreference = "Stop"
-
-Write-Host "[frontend] Starting dev server..." -ForegroundColor Cyan
-
-# Get the script directory (repo root) - works when called directly or from another script
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$frontendDir = Join-Path $scriptRoot "frontend"
-if (-not (Test-Path $frontendDir)) {
-    Write-Host "[frontend] 'frontend' folder not found." -ForegroundColor Red
-    exit 1
-}
-
-# ensure Node is available
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Write-Host "[frontend] Node.js not found on PATH." -ForegroundColor Red
-    Write-Host "          Install Node 18+ from https://nodejs.org/en/download" -ForegroundColor Yellow
-    exit 1
-}
-
-# figure out which script to run
-$pkgPath = Join-Path $frontendDir "package.json"
-if (-not (Test-Path $pkgPath)) {
-    Write-Host "[frontend] package.json not found." -ForegroundColor Red
-    exit 1
-}
-
-$pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-$scriptToRun = $null
-if ($pkg.scripts.dev) { $scriptToRun = "dev" }
-elseif ($pkg.scripts.start) { $scriptToRun = "start" }
-elseif ($pkg.scripts."serve") { $scriptToRun = "serve" }
-
-if (-not $scriptToRun) {
-    Write-Host "[frontend] Could not find a dev/start script in package.json." -ForegroundColor Red
-    Write-Host "          Define one under 'scripts' (e.g. \"dev\": \"vite\" or \"next dev\")." -ForegroundColor Yellow
-    exit 1
-}
-
-# Check if node_modules exists and has the required binaries
-$nodeModulesPath = Join-Path $frontendDir "node_modules"
-$viteBinPath = Join-Path $frontendDir "node_modules\.bin\vite.cmd"
-$needsInstall = $false
-
-if (-not (Test-Path $nodeModulesPath)) {
-    Write-Host "[frontend] node_modules not found." -ForegroundColor Yellow
-    $needsInstall = $true
-} elseif (-not (Test-Path $viteBinPath)) {
-    Write-Host "[frontend] Dependencies appear incomplete (vite not found in node_modules\.bin\)." -ForegroundColor Yellow
-    $needsInstall = $true
-}
-
-if ($needsInstall) {
-    Write-Host "[frontend] Installing dependencies..." -ForegroundColor Yellow
-    Push-Location $frontendDir
-    try {
-        if (Test-Path "package-lock.json") {
-            npm ci
-        }
-        else {
-            npm install
-        }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[frontend] Failed to install dependencies. Exit code: $LASTEXITCODE" -ForegroundColor Red
-            Pop-Location
-            Write-Host "[frontend] Press any key to exit..." -ForegroundColor Gray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            exit 1
-        }
-        Write-Host "[frontend] Dependencies installed." -ForegroundColor Green
-    }
-    catch {
-        Write-Host "[frontend] Failed to install dependencies. Error: $_" -ForegroundColor Red
-        Pop-Location
-        Write-Host "[frontend] Press any key to exit..." -ForegroundColor Gray
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        exit 1
-    }
-    Pop-Location
-}
-
-Push-Location $frontendDir
-try {
-    # helpful hint about common ports
-    Write-Host "`n[frontend] If this is Vite: http://localhost:5173" -ForegroundColor DarkGray
-    Write-Host "[frontend] If this is Next.js: http://localhost:3000" -ForegroundColor DarkGray
-    Write-Host "[frontend] If this is CRA: http://localhost:3000`n" -ForegroundColor DarkGray
-
-    # run it in the current console so logs stream visibly
-    npm run $scriptToRun
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "`n[frontend] Error: npm run $scriptToRun failed with exit code $LASTEXITCODE" -ForegroundColor Red
-        Write-Host "[frontend] Make sure dependencies are installed. Try running: .\install-frontend.ps1" -ForegroundColor Yellow
-        Write-Host "[frontend] Press any key to exit..." -ForegroundColor Gray
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    }
-}
-catch {
-    Write-Host "`n[frontend] Error: $_" -ForegroundColor Red
-    Write-Host "[frontend] Make sure dependencies are installed. Try running: .\install-frontend.ps1" -ForegroundColor Yellow
-    Write-Host "[frontend] Press any key to exit..." -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-}
-finally {
-    Pop-Location
-}
-```
-
-## `start-all.ps1` (optional)
-
-```powershell
-# start-all.ps1 (PowerShell 5+)
-$ErrorActionPreference = "Stop"
-
-# Get the script directory (repo root)
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-
-# backend window
-$backendScript = Join-Path $scriptRoot "start-backend.ps1"
-if (-not (Test-Path $backendScript)) {
-  Write-Host "[start-all] start-backend.ps1 not found." -ForegroundColor Red
-  exit 1
-}
-Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-NoExit","-File","`"$backendScript`""
-
-# frontend window
-$frontendScript = Join-Path $scriptRoot "start-frontend.ps1"
-if (Test-Path $frontendScript) {
-  Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-NoExit","-File","`"$frontendScript`""
-} else {
-  Write-Host "[start-all] start-frontend.ps1 not found; skipping frontend." -ForegroundColor Yellow
-}
-
-Write-Host "`n[start-all] Launched backend and (if present) frontend in new windows." -ForegroundColor Green
-Write-Host "[start-all] Backend will be at: http://localhost:8000" -ForegroundColor Cyan
-Write-Host "[start-all] Frontend will be at: http://localhost:5173" -ForegroundColor Cyan
+[backend] Starting server at: http://localhost:8000
+[frontend] Local: http://localhost:5173/
 ```
 
 ---
 
-# Troubleshooting (the stuff that makes people quit)
+## 6) Verify Installation
 
-## “The term '..\venv\Scripts\python.exe' is not recognized…”
-You’re running a script that expects a venv that doesn’t exist (or the path is wrong).
-
-Fix:
-1) Run from **repo root**
-2) Rebuild the venv:
+**Test backend health:**
 ```powershell
-cd C:\repos\filaops
-.\install.ps1
+curl http://localhost:8000/health
+# Expected: {"status":"healthy"}
 ```
 
-If your repo uses `backend\venv\` (recommended), make sure your `start-backend.ps1` points there.
+**Access the application:**
+Open http://localhost:5173 in your browser. The **Setup Wizard** will guide you through creating your admin account.
+
+**API documentation:**
+Open http://localhost:8000/docs for the interactive Swagger UI.
 
 ---
 
-## PowerShell blocks scripts
-Run this once per terminal window:
+## Everyday Usage
+
+| Task | Command |
+|------|---------|
+| Start everything | `.\start-all.ps1` |
+| Start backend only | `.\start-backend.ps1` |
+| Start frontend only | `.\start-frontend.ps1` |
+| Stop | Press `Ctrl+C` in each window |
+
+---
+
+## Troubleshooting
+
+### PowerShell blocks scripts
+
+Run this once per terminal:
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 ---
 
-## Postgres auth errors / migrations fail
-Most common causes:
-- Postgres service isn’t running
-- wrong password in `.env`
-- DB doesn’t exist yet
+### "python is not recognized"
 
-Fast reset (⚠️ wipes the DB):
+Python isn't in PATH. Either:
+1. Reinstall Python and check "Add Python to PATH"
+2. Or use the full path: `C:\Users\YourName\AppData\Local\Programs\Python\Python311\python.exe`
+
+---
+
+### Database connection errors
+
+**Check Postgres is running:**
+- Open Services (`services.msc`)
+- Find "postgresql-x64-16" (or similar)
+- Ensure it's "Running"
+
+**Wrong password:**
+- Edit `.env` and verify `DB_PASSWORD` matches your PostgreSQL password
+
+**Database doesn't exist:**
 ```powershell
-$env:PGPASSWORD="Admin"   # or your password
-psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS filaops WITH (FORCE)"
+$env:PGPASSWORD = "YourPassword"
 psql -h localhost -U postgres -c "CREATE DATABASE filaops"
-cd C:\repos\filaops
-.\install.ps1
 ```
-
-If `psql` is missing, see **psql not found** below.
 
 ---
 
-## Port 8000 already in use
-Use a different port:
+### Port 8000 already in use
+
+Something else is using port 8000. Find and stop it:
 ```powershell
-.\start-backend.ps1 -Port 8010
+netstat -ano | findstr :8000
+# Note the PID (last column)
+taskkill /PID <pid> /F
 ```
 
 ---
 
-## Node not found / frontend won’t install
-Install Node 18+ and open a **new** PowerShell window (PATH refresh), then:
+### Frontend shows "Failed to fetch" or network errors
+
+1. **Check backend is running:** http://localhost:8000/health
+2. **Check backend logs** in the backend PowerShell window for errors
+3. **CORS issue:** Ensure backend is running on port 8000 (frontend expects this)
+
+---
+
+### Node not found
+
+1. Install Node.js 18+ from https://nodejs.org/
+2. **Open a new PowerShell window** (PATH refresh required)
+3. Verify: `node --version`
+
+---
+
+### Migrations fail with "relation already exists"
+
+Database has old schema. Reset it:
 ```powershell
-cd C:\repos\filaops
-.\install-frontend.ps1
+$env:PGPASSWORD = "YourPassword"
+psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS filaops"
+psql -h localhost -U postgres -c "CREATE DATABASE filaops"
+# Then restart backend - it will run migrations automatically
 ```
 
 ---
 
-## Frontend loads but can’t talk to the backend (CORS / wrong API URL)
-Typical symptoms:
-- UI shows network errors
-- login/setup calls fail
-- browser console shows CORS errors
+## What's Installed Where
 
-What to do:
-1) Confirm backend is healthy: http://localhost:8000/health
-2) Check whether your frontend expects an env var like `VITE_API_URL`, `REACT_APP_API_URL`, or `NEXT_PUBLIC_API_URL`.
-   - If it does, set it to `http://localhost:8000` in the frontend's `.env.local` / `.env` file.
-3) Restart the frontend dev server.
-
----
-
-## `psql` not found
-- Reopen PowerShell (PATH refresh), or add PostgreSQL `bin` folder to PATH.
-- You can still run the app without `psql` if migrations are handled via `install.ps1`.
+| Component | Location |
+|-----------|----------|
+| Backend venv | `backend\venv\` |
+| Backend code | `backend\app\` |
+| Database migrations | `backend\migrations\` |
+| Frontend code | `frontend\` |
+| Frontend deps | `frontend\node_modules\` |
+| Environment config | `.env` (repo root) |
 
 ---
 
-## What’s installed where?
+## Next Steps
 
-- Backend venv: `backend\venv\`
-- Backend code: `backend\app\`
-- Migrations: `backend\migrations\`
-- Frontend: `frontend\`
-- Main scripts:
-  - `install.ps1` – backend deps + migrations
-  - `start-backend.ps1` – run API (`-Migrate` optional)
-  - `install-frontend.ps1` – frontend deps
-  - `start-frontend.ps1` – frontend dev server
-  - `start-all.ps1` – two-window launcher
+1. **Create your admin account** via the Setup Wizard
+2. **Explore the API docs** at http://localhost:8000/docs
+3. **Import products** from CSV (Products → Import)
+4. **Set up inventory** locations and materials
 
----
-
-## Next steps
-
-- Open API docs: http://localhost:8000/docs
-- Use the UI to add products/materials/orders (once frontend is running)
-- If anything in this doc doesn’t match what you see, copy/paste:
-  - the exact command you ran, and
-  - the last ~30 lines of console output
-
+**Need help?**
+- [Troubleshooting Guide](../troubleshooting.md)
+- [FAQ](../faq.md)
+- [Discord Community](https://discord.gg/FAhxySnRwa)
