@@ -316,6 +316,852 @@ async def generate_secret_key(
     }
 
 
+@router.post("/remediate/open-env-file")
+async def open_env_file(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Open the .env file in the system's default text editor.
+
+    Makes it easy for non-technical users to edit configuration.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+    import platform
+
+    # Find the .env file path (project root, one level above backend/)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+    project_root = os.path.dirname(backend_dir)
+    env_path = os.path.join(project_root, ".env")
+
+    if not os.path.exists(env_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Configuration file not found at {env_path}"
+        )
+
+    try:
+        # Open in default text editor based on platform
+        if platform.system() == "Windows":
+            # Use notepad on Windows
+            subprocess.Popen(["notepad.exe", env_path])
+        elif platform.system() == "Darwin":
+            # Use TextEdit on Mac
+            subprocess.Popen(["open", "-e", env_path])
+        else:
+            # Use xdg-open on Linux
+            subprocess.Popen(["xdg-open", env_path])
+
+        logger.info(f"Opened .env file for editing by {current_user.email}")
+        return {"success": True, "message": "Configuration file opened in text editor"}
+
+    except Exception as e:
+        logger.error(f"Failed to open .env file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not open file: {str(e)}"
+        )
+
+
+@router.post("/remediate/update-secret-key")
+async def update_secret_key(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Automatically update the SECRET_KEY in the .env file.
+
+    This is the easy mode for non-technical users.
+    Generates a new key and updates the file automatically.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import secrets
+    import re
+
+    # Find the .env file path (project root, one level above backend/)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+    project_root = os.path.dirname(backend_dir)
+    env_path = os.path.join(project_root, ".env")
+
+    if not os.path.exists(env_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Configuration file not found at {env_path}"
+        )
+
+    try:
+        # Read current .env content
+        with open(env_path, "r") as f:
+            content = f.read()
+
+        # Generate new key
+        new_key = secrets.token_urlsafe(64)
+
+        # Replace SECRET_KEY line
+        pattern = r'^SECRET_KEY=.*$'
+        new_line = f'SECRET_KEY={new_key}'
+
+        if re.search(pattern, content, re.MULTILINE):
+            new_content = re.sub(pattern, new_line, content, flags=re.MULTILINE)
+        else:
+            # If SECRET_KEY doesn't exist, add it
+            new_content = content + f"\nSECRET_KEY={new_key}\n"
+
+        # Write back
+        with open(env_path, "w") as f:
+            f.write(new_content)
+
+        logger.info(f"SECRET_KEY auto-updated by {current_user.email}")
+
+        return {
+            "success": True,
+            "message": "SECRET_KEY has been updated! Please restart the backend.",
+            "new_key_preview": f"{new_key[:20]}...",
+            "requires_restart": True
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to update SECRET_KEY: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not update configuration: {str(e)}"
+        )
+
+
+@router.post("/remediate/open-restart-terminal")
+async def open_restart_terminal(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Open a terminal window with instructions to restart the backend.
+
+    Makes it easy for non-technical users who may not have a terminal open.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+    import platform
+
+    # Find the project root
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+    project_root = os.path.dirname(backend_dir)
+
+    try:
+        if platform.system() == "Windows":
+            # Open a standalone PowerShell window (not inside VS Code)
+            # Using 'start' command spawns a detached process
+            ps_script = (
+                f"cd '{project_root}'; "
+                "Write-Host ''; "
+                "Write-Host '========================================' -ForegroundColor Cyan; "
+                "Write-Host '  RESTART THE BACKEND' -ForegroundColor Yellow; "
+                "Write-Host '========================================' -ForegroundColor Cyan; "
+                "Write-Host ''; "
+                "Write-Host 'Run this command:' -ForegroundColor White; "
+                "Write-Host ''; "
+                "Write-Host '  .\\start-backend.ps1' -ForegroundColor Green; "
+                "Write-Host ''; "
+                "Write-Host '(If already running, press Ctrl+C first)' -ForegroundColor Gray; "
+                "Write-Host ''"
+            )
+            # Use 'start' to open a fresh PowerShell window detached from VS Code
+            subprocess.Popen(
+                f'start powershell -NoExit -Command "{ps_script}"',
+                shell=True,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        elif platform.system() == "Darwin":
+            # macOS - open Terminal
+            script = f'''tell application "Terminal"
+                do script "cd '{project_root}' && echo '' && echo '=== RESTART THE BACKEND ===' && echo 'Run: ./start-backend.sh'"
+                activate
+            end tell'''
+            subprocess.Popen(["osascript", "-e", script])
+        else:
+            # Linux - try common terminals
+            subprocess.Popen([
+                "x-terminal-emulator", "-e",
+                f"bash -c 'cd {project_root} && echo \"=== RESTART THE BACKEND ===\"; echo \"Run: ./start-backend.sh\"; exec bash'"
+            ])
+
+        logger.info(f"Opened restart terminal for {current_user.email}")
+        return {"success": True, "message": "Terminal opened with restart instructions"}
+
+    except Exception as e:
+        logger.error(f"Failed to open terminal: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not open terminal: {str(e)}"
+        )
+
+
+@router.post("/remediate/fix-dependencies")
+async def fix_dependencies(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Automatically scan and fix vulnerable dependencies.
+
+    This uses pip-audit to identify and upgrade vulnerable packages.
+    Non-technical users don't need to know about venvs or pip.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+
+    # Find the venv path (backend/venv)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+
+    # Determine pip and python paths based on OS
+    import platform
+    if platform.system() == "Windows":
+        pip_path = os.path.join(backend_dir, "venv", "Scripts", "pip.exe")
+        python_path = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
+    else:
+        pip_path = os.path.join(backend_dir, "venv", "bin", "pip")
+        python_path = os.path.join(backend_dir, "venv", "bin", "python")
+
+    if not os.path.exists(pip_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Virtual environment not found at {os.path.dirname(pip_path)}"
+        )
+
+    results = {
+        "pip_audit_installed": False,
+        "vulnerabilities_found": 0,
+        "packages_upgraded": [],
+        "errors": [],
+        "requires_restart": False
+    }
+
+    try:
+        # Step 1: Ensure pip-audit is installed
+        logger.info("Checking pip-audit installation...")
+        check_audit = subprocess.run(
+            [python_path, "-m", "pip_audit", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if check_audit.returncode != 0:
+            # Install pip-audit
+            logger.info("Installing pip-audit...")
+            install_result = subprocess.run(
+                [pip_path, "install", "pip-audit"],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if install_result.returncode != 0:
+                results["errors"].append(f"Failed to install pip-audit: {install_result.stderr}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Could not install pip-audit"
+                )
+
+        results["pip_audit_installed"] = True
+
+        # Step 2: Run pip-audit to check for vulnerabilities
+        logger.info("Running pip-audit scan...")
+        audit_result = subprocess.run(
+            [python_path, "-m", "pip_audit", "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+        vulnerable_packages = []
+        if audit_result.stdout:
+            try:
+                import json
+                audit_data = json.loads(audit_result.stdout)
+                # pip-audit format: {"dependencies": [{"name": "pkg", "vulns": [...]}], "fixes": []}
+                dependencies = audit_data.get("dependencies", [])
+                for dep in dependencies:
+                    if dep.get("vulns") and len(dep.get("vulns", [])) > 0:
+                        vulnerable_packages.append(dep.get("name"))
+                results["vulnerabilities_found"] = len(vulnerable_packages)
+            except json.JSONDecodeError:
+                # pip-audit might output non-JSON if no vulnerabilities
+                pass
+
+        if not vulnerable_packages:
+            logger.info("No vulnerabilities found!")
+            return {
+                "success": True,
+                "message": "No known vulnerabilities found in your dependencies!",
+                **results
+            }
+
+        # Step 3: Upgrade vulnerable packages
+        logger.info(f"Found {len(vulnerable_packages)} vulnerable packages, upgrading...")
+        packages_to_upgrade = list(set(vulnerable_packages))
+
+        for package in packages_to_upgrade:
+            logger.info(f"Upgrading {package}...")
+            upgrade_result = subprocess.run(
+                [pip_path, "install", "--upgrade", package],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if upgrade_result.returncode == 0:
+                results["packages_upgraded"].append(package)
+            else:
+                results["errors"].append(f"Failed to upgrade {package}: {upgrade_result.stderr[:200]}")
+
+        results["requires_restart"] = len(results["packages_upgraded"]) > 0
+
+        logger.info(f"Dependencies fixed by {current_user.email}")
+
+        if results["packages_upgraded"]:
+            return {
+                "success": True,
+                "message": f"Upgraded {len(results['packages_upgraded'])} package(s). Please restart the backend.",
+                **results
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Could not upgrade vulnerable packages. See errors for details.",
+                **results
+            }
+
+    except subprocess.TimeoutExpired:
+        logger.error("Dependency fix timed out")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Operation timed out. Try running pip-audit manually."
+        )
+    except Exception as e:
+        logger.error(f"Failed to fix dependencies: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not fix dependencies: {str(e)}"
+        )
+
+
+@router.post("/remediate/fix-rate-limiting")
+async def fix_rate_limiting(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Automatically install slowapi for rate limiting.
+
+    FilaOps auto-detects slowapi on startup and enables rate limiting.
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+
+    # Find the venv pip path
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+
+    import platform
+    if platform.system() == "Windows":
+        pip_path = os.path.join(backend_dir, "venv", "Scripts", "pip.exe")
+    else:
+        pip_path = os.path.join(backend_dir, "venv", "bin", "pip")
+
+    if not os.path.exists(pip_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Virtual environment not found at {os.path.dirname(pip_path)}"
+        )
+
+    try:
+        logger.info("Installing slowapi for rate limiting...")
+        result = subprocess.run(
+            [pip_path, "install", "slowapi"],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+        if result.returncode == 0:
+            logger.info(f"Rate limiting installed by {current_user.email}")
+            return {
+                "success": True,
+                "message": "SlowAPI installed! Restart the backend to enable rate limiting.",
+                "requires_restart": True
+            }
+        else:
+            logger.error(f"Failed to install slowapi: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Installation failed: {result.stderr[:200]}"
+            )
+
+    except subprocess.TimeoutExpired:
+        logger.error("Rate limiting installation timed out")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Installation timed out. Try running: pip install slowapi"
+        )
+    except Exception as e:
+        logger.error(f"Failed to install rate limiting: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not install rate limiting: {str(e)}"
+        )
+
+
+class SetupHTTPSRequest(BaseModel):
+    """Request body for HTTPS setup"""
+    domain: str
+
+
+@router.post("/remediate/setup-https")
+async def setup_https(
+    request: SetupHTTPSRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Automatically set up HTTPS with Caddy reverse proxy.
+
+    Steps:
+    1. Check if Caddy is installed
+    2. Install Caddy if needed (via winget on Windows)
+    3. Create Caddyfile with user's domain
+    4. Start Caddy
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+    import platform
+
+    domain = request.domain.strip()
+    if not domain:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Domain is required"
+        )
+
+    # Find the project root
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )))
+    project_root = os.path.dirname(backend_dir)
+
+    results = {
+        "caddy_installed": False,
+        "caddy_was_installed": False,
+        "caddyfile_created": False,
+        "caddy_started": False,
+        "domain": domain,
+        "errors": []
+    }
+
+    try:
+        # Step 1: Check if Caddy is installed
+        logger.info("Checking if Caddy is installed...")
+        caddy_check = subprocess.run(
+            ["caddy", "version"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if caddy_check.returncode == 0:
+            results["caddy_installed"] = True
+            logger.info(f"Caddy already installed: {caddy_check.stdout.strip()}")
+        else:
+            raise FileNotFoundError("Caddy not found")
+
+    except (FileNotFoundError, subprocess.SubprocessError):
+        # Caddy not installed - try to download it directly
+        logger.info("Caddy not found - attempting to download from GitHub...")
+
+        if platform.system() == "Windows":
+            caddy_exe_path = os.path.join(project_root, "caddy.exe")
+
+            try:
+                # Download Caddy from GitHub releases using PowerShell
+                # This is more reliable than winget
+                download_script = f'''
+$ErrorActionPreference = "Stop"
+$caddyPath = "{caddy_exe_path}"
+
+# Get latest release info from GitHub API
+$release = Invoke-RestMethod -Uri "https://api.github.com/repos/caddyserver/caddy/releases/latest"
+$version = $release.tag_name
+
+# Find the Windows AMD64 asset
+$asset = $release.assets | Where-Object {{ $_.name -like "*windows_amd64.zip" }} | Select-Object -First 1
+
+if (-not $asset) {{
+    throw "Could not find Windows AMD64 release"
+}}
+
+Write-Host "Downloading Caddy $version..."
+$zipPath = "$env:TEMP\\caddy.zip"
+Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
+
+Write-Host "Extracting..."
+$extractPath = "$env:TEMP\\caddy_extract"
+if (Test-Path $extractPath) {{ Remove-Item -Recurse -Force $extractPath }}
+Expand-Archive -Path $zipPath -DestinationPath $extractPath
+
+# Find and copy caddy.exe
+$caddyExe = Get-ChildItem -Path $extractPath -Recurse -Filter "caddy.exe" | Select-Object -First 1
+if ($caddyExe) {{
+    Copy-Item $caddyExe.FullName -Destination $caddyPath -Force
+    Write-Host "Caddy installed to: $caddyPath"
+}} else {{
+    throw "caddy.exe not found in archive"
+}}
+
+# Cleanup
+Remove-Item $zipPath -Force
+Remove-Item $extractPath -Recurse -Force
+'''
+                # Run PowerShell to download Caddy
+                ps_result = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", download_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+
+                if ps_result.returncode == 0 and os.path.exists(caddy_exe_path):
+                    results["caddy_installed"] = True
+                    results["caddy_was_installed"] = True
+                    results["caddy_path"] = caddy_exe_path
+                    logger.info(f"Caddy downloaded successfully to {caddy_exe_path}")
+                else:
+                    logger.warning(f"Caddy download failed: {ps_result.stderr}")
+                    results["caddy_installed"] = False
+                    results["needs_caddy_install"] = True
+
+            except Exception as e:
+                logger.warning(f"Failed to download Caddy: {e}")
+                results["caddy_installed"] = False
+                results["needs_caddy_install"] = True
+        else:
+            # Linux/Mac - tell user to install manually
+            results["caddy_installed"] = False
+            results["needs_caddy_install"] = True
+
+    # Step 3: Create Caddyfile
+    logger.info(f"Creating Caddyfile for domain: {domain}")
+    caddyfile_path = os.path.join(project_root, "Caddyfile")
+
+    caddyfile_content = f"""{domain} {{
+    # API requests go to the backend (port 8000)
+    @api path /api/* /docs /openapi.json /health
+    reverse_proxy @api localhost:8000
+
+    # Everything else goes to the frontend (port 5173)
+    reverse_proxy localhost:5173
+
+    # Security: Block sensitive files
+    @blocked path /.env /.git/* /.*
+    respond @blocked 404
+
+    # Enable compression
+    encode gzip
+
+    # Logging
+    log {{
+        output file access.log
+    }}
+}}
+"""
+
+    try:
+        with open(caddyfile_path, "w") as f:
+            f.write(caddyfile_content)
+        results["caddyfile_created"] = True
+        logger.info(f"Caddyfile created at {caddyfile_path}")
+    except Exception as e:
+        results["errors"].append(f"Failed to create Caddyfile: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not create Caddyfile: {str(e)}"
+        )
+
+    # Step 4: Create desktop shortcut
+    logger.info("Creating desktop shortcut...")
+    results["shortcut_created"] = False
+
+    try:
+        if platform.system() == "Windows":
+            # Get desktop path using Windows Shell API (handles OneDrive redirection)
+            desktop = None
+            try:
+                import ctypes
+
+                # Use SHGetFolderPathW to get the actual Desktop path
+                # CSIDL_DESKTOP = 0x0000 is the Desktop folder
+                buf = ctypes.create_unicode_buffer(260)
+                ctypes.windll.shell32.SHGetFolderPathW(None, 0x0000, None, 0, buf)
+                if buf.value:
+                    desktop = buf.value
+                    logger.info(f"Desktop path from Shell API: {desktop}")
+            except Exception as e:
+                logger.warning(f"Shell API desktop detection failed: {e}")
+
+            # Fallback methods if Shell API fails
+            if not desktop or not os.path.exists(desktop):
+                # Try OneDrive Desktop path first (most common for new Windows setups)
+                onedrive_desktop = os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop")
+                if os.path.exists(onedrive_desktop):
+                    desktop = onedrive_desktop
+                    logger.info(f"Using OneDrive Desktop path: {desktop}")
+                else:
+                    # Fallback to standard Desktop path
+                    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                    logger.info(f"Using standard Desktop path: {desktop}")
+
+            # Create the Desktop folder if it doesn't exist (rare edge case)
+            if not os.path.exists(desktop):
+                logger.warning(f"Desktop folder not found at {desktop}, creating it...")
+                os.makedirs(desktop, exist_ok=True)
+
+            # Create a batch file launcher
+            frontend_path = os.path.join(project_root, "frontend")
+            launcher_path = os.path.join(desktop, "Start FilaOps.bat")
+            launcher_content = f'''@echo off
+title FilaOps Server
+color 0A
+echo.
+echo  ======================================
+echo    Starting FilaOps ERP Server
+echo  ======================================
+echo.
+echo  Domain: {domain}
+echo.
+
+:: Check if hosts file already has the entry
+findstr /C:"{domain}" %SystemRoot%\\System32\\drivers\\etc\\hosts > nul 2>&1
+if errorlevel 1 (
+    echo  Adding {domain} to hosts file...
+    echo  [This requires administrator permission - click Yes if prompted]
+    powershell -Command "Start-Process powershell -ArgumentList '-Command', 'Add-Content -Path ''$env:SystemRoot\\System32\\drivers\\etc\\hosts'' -Value ''127.0.0.1 {domain}'' -Force; Write-Host ''Done!''; Start-Sleep 2' -Verb RunAs" 2>nul
+    timeout /t 2 /nobreak > nul
+)
+
+:: Start the backend
+cd /d "{project_root}"
+echo  Starting Backend API...
+start "FilaOps Backend" powershell -NoExit -Command "cd '{project_root}'; .\\start-backend.ps1"
+
+:: Start the frontend
+echo  Starting Frontend...
+start "FilaOps Frontend" powershell -NoExit -Command "cd '{frontend_path}'; npm run dev"
+
+:: Wait for servers to start
+echo  Waiting for servers to start...
+timeout /t 8 /nobreak > nul
+
+:: Start Caddy (use local caddy.exe if available)
+echo  Starting HTTPS server (Caddy)...
+if exist "{project_root}\\caddy.exe" (
+    start "Caddy HTTPS" "{project_root}\\caddy.exe" run --config "{caddyfile_path}"
+) else (
+    start "Caddy HTTPS" caddy run --config "{caddyfile_path}"
+)
+
+:: Wait a moment then open browser
+timeout /t 3 /nobreak > nul
+echo.
+echo  Opening browser to https://{domain}
+start https://{domain}
+
+echo.
+echo  ======================================
+echo    FilaOps is running!
+echo  ======================================
+echo.
+echo  Backend:  http://localhost:8000
+echo  Frontend: http://localhost:5173
+echo  HTTPS:    https://{domain}
+echo.
+echo  Press any key to stop all servers...
+pause > nul
+
+:: Stop servers
+taskkill /FI "WINDOWTITLE eq FilaOps Backend*" > nul 2>&1
+taskkill /FI "WINDOWTITLE eq FilaOps Frontend*" > nul 2>&1
+taskkill /FI "WINDOWTITLE eq Caddy HTTPS*" > nul 2>&1
+echo  Servers stopped.
+'''
+            with open(launcher_path, "w") as f:
+                f.write(launcher_content)
+
+            results["shortcut_created"] = True
+            results["shortcut_path"] = launcher_path
+            logger.info(f"Desktop launcher created at {launcher_path}")
+
+    except Exception as e:
+        results["errors"].append(f"Failed to create desktop shortcut: {str(e)}")
+        # Non-fatal error
+
+    # Step 4.5: Update vite.config.js to allow the domain
+    vite_config_path = os.path.join(project_root, "frontend", "vite.config.js")
+    if os.path.exists(vite_config_path):
+        try:
+            with open(vite_config_path, "r") as f:
+                vite_content = f.read()
+
+            # Check if allowedHosts already configured
+            if "allowedHosts" not in vite_content:
+                # Add server.allowedHosts config
+                vite_content = vite_content.replace(
+                    "export default defineConfig({",
+                    f"""export default defineConfig({{
+  server: {{
+    allowedHosts: ['localhost', '{domain}'],
+  }},"""
+                )
+                with open(vite_config_path, "w") as f:
+                    f.write(vite_content)
+                logger.info(f"Updated vite.config.js with allowedHosts for {domain}")
+                results["vite_updated"] = True
+            elif domain not in vite_content:
+                # Add domain to existing allowedHosts
+                import re
+                pattern = r"allowedHosts:\s*\[([^\]]*)\]"
+                match = re.search(pattern, vite_content)
+                if match:
+                    current_hosts = match.group(1)
+                    new_hosts = f"{current_hosts}, '{domain}'"
+                    vite_content = re.sub(pattern, f"allowedHosts: [{new_hosts}]", vite_content)
+                    with open(vite_config_path, "w") as f:
+                        f.write(vite_content)
+                    logger.info(f"Added {domain} to vite.config.js allowedHosts")
+                    results["vite_updated"] = True
+        except Exception as e:
+            logger.warning(f"Could not update vite.config.js: {e}")
+            results["errors"].append(f"Could not update Vite config: {str(e)}")
+
+    # Step 5: Start Caddy (only if installed)
+    if results["caddy_installed"]:
+        logger.info("Starting Caddy...")
+        try:
+            if platform.system() == "Windows":
+                # Use local caddy.exe if we downloaded it, otherwise use system caddy
+                caddy_exe = results.get("caddy_path", "caddy")
+                subprocess.Popen(
+                    f'start "Caddy Server" "{caddy_exe}" run --config "{caddyfile_path}"',
+                    shell=True,
+                    cwd=project_root,
+                    creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                )
+            else:
+                subprocess.Popen(
+                    ["caddy", "run", "--config", caddyfile_path],
+                    cwd=project_root,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+
+            results["caddy_started"] = True
+            logger.info("Caddy started successfully")
+
+        except Exception as e:
+            results["errors"].append(f"Failed to start Caddy: {str(e)}")
+    else:
+        results["caddy_started"] = False
+
+    logger.info(f"HTTPS setup completed by {current_user.email} for domain {domain}")
+
+    # Build appropriate message
+    if results.get("needs_caddy_install"):
+        message = (
+            f"Configuration created for {domain}! "
+            "Now install Caddy from https://caddyserver.com/download, "
+            "then use the desktop shortcut to start everything."
+        )
+    elif results["caddy_started"]:
+        message = f"HTTPS configured for {domain}! Caddy is now running."
+    else:
+        message = f"HTTPS configured for {domain}! Start Caddy manually with: caddy run"
+
+    return {
+        "success": True,
+        "message": message,
+        **results
+    }
+
+
+@router.get("/remediate/check-caddy")
+async def check_caddy_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Check if Caddy is installed and get its version."""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["caddy", "version"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if result.returncode == 0:
+            return {
+                "installed": True,
+                "version": result.stdout.strip()
+            }
+        else:
+            return {"installed": False, "version": None}
+
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return {"installed": False, "version": None}
+
+
 @router.get("/remediate/{check_id}")
 async def get_remediation_steps(
     check_id: str,
@@ -391,40 +1237,28 @@ async def get_remediation_steps(
         "https_enabled": {
             "title": "Fix: Enable HTTPS",
             "severity": "warning",
-            "estimated_time": "15 minutes",
-            "can_auto_generate": False,
+            "estimated_time": "2 minutes",
+            "can_auto_fix_https": True,
             "steps": [
                 {
                     "step": 1,
-                    "title": "Install Caddy (Recommended)",
-                    "description": "Caddy automatically handles HTTPS certificates.",
-                    "command": "Download from https://caddyserver.com/download",
-                    "docs_url": "https://caddyserver.com/docs/quick-starts/https"
+                    "title": "Enter Your Domain",
+                    "description": "Tell us what domain you want to use (e.g., filaops.local, mycompany.com)."
                 },
                 {
                     "step": 2,
-                    "title": "Create a Caddyfile",
-                    "description": "Create a file named 'Caddyfile' in your project root:",
-                    "code_snippet": """yourdomain.com {
-    reverse_proxy localhost:8000
-
-    # Block sensitive files
-    @blocked path /.env /.git/* /.*
-    respond @blocked 404
-}"""
+                    "title": "We'll Install Caddy",
+                    "description": "We'll automatically install Caddy (a secure web server) if it's not already installed."
                 },
                 {
                     "step": 3,
-                    "title": "Update FRONTEND_URL",
-                    "description": "Update your .env to use HTTPS URLs:",
-                    "file_path": "backend/.env",
-                    "code_snippet": "FRONTEND_URL=https://yourdomain.com"
+                    "title": "Configure & Start",
+                    "description": "We'll create the configuration and start the HTTPS server for you."
                 },
                 {
                     "step": 4,
-                    "title": "Start Caddy",
-                    "description": "Run Caddy to start serving with HTTPS.",
-                    "command": "caddy run"
+                    "title": "Desktop Shortcut",
+                    "description": "We'll create a 'Start FilaOps' shortcut on your desktop to launch everything with one click."
                 }
             ]
         },
@@ -482,40 +1316,36 @@ async def get_remediation_steps(
         "dependencies_secure": {
             "title": "Fix: Check Dependencies for Vulnerabilities",
             "severity": "warning",
-            "estimated_time": "5 minutes",
-            "can_auto_generate": False,
+            "estimated_time": "2 minutes",
+            "can_auto_fix_dependencies": True,
             "steps": [
                 {
                     "step": 1,
-                    "title": "Install pip-audit",
-                    "description": "Install the vulnerability scanner:",
-                    "command": "pip install pip-audit"
+                    "title": "Scan for Vulnerabilities",
+                    "description": "We'll scan all installed packages for known security issues."
                 },
                 {
                     "step": 2,
-                    "title": "Run Security Audit",
-                    "description": "Scan your dependencies for known CVEs:",
-                    "command": "pip-audit"
+                    "title": "Upgrade Vulnerable Packages",
+                    "description": "Automatically upgrade any packages with known vulnerabilities."
                 },
                 {
                     "step": 3,
-                    "title": "Fix Vulnerabilities",
-                    "description": "Update vulnerable packages:",
-                    "command": "pip-audit --fix"
+                    "title": "Restart the Backend",
+                    "description": "Restart to apply the updated packages."
                 }
             ]
         },
         "rate_limiting_enabled": {
             "title": "Fix: Enable Rate Limiting",
             "severity": "warning",
-            "estimated_time": "2 minutes",
-            "can_auto_generate": False,
+            "estimated_time": "1 minute",
+            "can_auto_fix_rate_limiting": True,
             "steps": [
                 {
                     "step": 1,
                     "title": "Install SlowAPI",
-                    "description": "Install the rate limiting library:",
-                    "command": "pip install slowapi"
+                    "description": "We'll install the rate limiting library for you."
                 },
                 {
                     "step": 2,

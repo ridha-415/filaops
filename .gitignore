@@ -156,6 +156,11 @@ CURRENT_SESSION.md
 
 # Backend debug/diagnostic scripts (one-off, not part of codebase)
 backend/scripts/
+# But keep security_audit.py - it's used by the security endpoint
+!backend/scripts/security_audit.py
+
+# Caddy binary (downloaded by auto-setup)
+caddy.exe
 
 # AI assistant instructions (local context only)
 .ai-instructions/

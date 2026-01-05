@@ -8,4 +8,7 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  server: {
+    allowedHosts: ['localhost', 'filaops.local'],
+  },
 })

@@ -3,7 +3,27 @@
  *
  * Centralized API URL configuration.
  *
- * Default port is 8000 for local development.
+ * When accessed via HTTPS reverse proxy (like Caddy), use relative URLs
+ * so requests go through the proxy. Otherwise use localhost for dev.
  */
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const getApiUrl = () => {
+  // If explicitly set via env var, use that
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // If accessed via HTTPS or non-localhost domain, use relative URLs
+  // (requests will go through the reverse proxy)
+  if (
+    window.location.protocol === "https:" ||
+    (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1")
+  ) {
+    return "";  // Relative URLs: /api/v1/... goes through Caddy
+  }
+
+  // Local development - direct to backend
+  return "http://localhost:8000";
+};
+
+export const API_URL = getApiUrl();
 
