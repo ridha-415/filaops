@@ -41,6 +41,8 @@ const AdminSettings = () => {
   const [savingAi, setSavingAi] = useState(false);
   const [testingAi, setTestingAi] = useState(false);
   const [startingOllama, setStartingOllama] = useState(false);
+  const [anthropicStatus, setAnthropicStatus] = useState({ installed: false, version: null, loading: true });
+  const [installingAnthropic, setInstallingAnthropic] = useState(false);
 
   // Common timezones (grouped by region)
   const timezoneOptions = [
@@ -110,6 +112,7 @@ const AdminSettings = () => {
     fetchSettings();
     fetchCurrentVersion();
     fetchAiSettings();
+    // checkAnthropicStatus is called inside fetchAiSettings when relevant
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -296,9 +299,59 @@ const AdminSettings = () => {
           ai_ollama_model: data.ai_ollama_model || "llama3.2",
           external_ai_blocked: data.external_ai_blocked || false,
         });
+        // Only check Anthropic package status if relevant (anthropic selected or no provider)
+        if (data.ai_provider === "anthropic" || !data.ai_provider) {
+          checkAnthropicStatus();
+        } else {
+          // Not using Anthropic, so mark loading as done
+          setAnthropicStatus((prev) => ({ ...prev, loading: false }));
+        }
       }
     } catch (error) {
       console.error("Failed to fetch AI settings:", error);
+      setAnthropicStatus((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const checkAnthropicStatus = async () => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch(`${API_URL}/api/v1/settings/ai/anthropic-status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAnthropicStatus({ ...data, loading: false });
+      } else {
+        setAnthropicStatus((prev) => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error("Failed to check anthropic status:", error);
+      setAnthropicStatus((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleInstallAnthropic = async () => {
+    setInstallingAnthropic(true);
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch(`${API_URL}/api/v1/settings/ai/install-anthropic`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(data.message);
+        // Recheck status
+        await checkAnthropicStatus();
+      } else {
+        toast.error(data.message || "Failed to install package");
+      }
+    } catch (error) {
+      toast.error("Failed to install package: " + error.message);
+    } finally {
+      setInstallingAnthropic(false);
     }
   };
 
@@ -1034,24 +1087,56 @@ const AdminSettings = () => {
                     </a>
                   </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    API Key
-                  </label>
-                  <input
-                    type="password"
-                    name="ai_api_key"
-                    value={aiForm.ai_api_key}
-                    onChange={handleAiFormChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
-                    placeholder={
-                      aiSettings?.ai_api_key_set
-                        ? "••••••••••••••• (key is set)"
-                        : "sk-ant-..."
-                    }
-                  />
-                  <p className="text-sm text-gray-400 mt-1">
-                    Get your API key from{" "}
+
+                {/* Package Installation Check */}
+                {!anthropicStatus.installed && (
+                  <div className="p-3 bg-red-900/30 border border-red-600 rounded-lg">
+                    <p className="text-sm text-red-300 font-medium mb-2">
+                      Required Package Not Installed
+                    </p>
+                    <p className="text-sm text-gray-300 mb-3">
+                      The Anthropic Python package needs to be installed before you can use Claude AI.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleInstallAnthropic}
+                      disabled={installingAnthropic}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      {installingAnthropic ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Installing...
+                        </>
+                      ) : (
+                        "Install Anthropic Package"
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {anthropicStatus.installed && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">
+                      API Key
+                    </label>
+                    <input
+                      type="password"
+                      name="ai_api_key"
+                      value={aiForm.ai_api_key}
+                      onChange={handleAiFormChange}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+                      placeholder={
+                        aiSettings?.ai_api_key_set
+                          ? "••••••••••••••• (key is set)"
+                          : "sk-ant-..."
+                      }
+                    />
+                    <p className="text-sm text-gray-400 mt-1">
+                      Get your API key from{" "}
                     <a
                       href="https://console.anthropic.com/account/keys"
                       target="_blank"
@@ -1061,7 +1146,8 @@ const AdminSettings = () => {
                       console.anthropic.com
                     </a>
                   </p>
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
