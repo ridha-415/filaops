@@ -103,26 +103,38 @@ class Settings(BaseSettings):
     # ===================
     # CORS Settings
     # ===================
-    ALLOWED_ORIGINS: List[str] = Field(
-        default=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:5174",
-            "http://127.0.0.1:5174",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:8001",
-            "http://127.0.0.1:8001",
-        ],
-        description="Allowed CORS origins",
+    # Note: Use str type internally to avoid pydantic-settings JSON parsing issues.
+    # Access via allowed_origins property for the parsed list.
+    ALLOWED_ORIGINS_STR: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8001,http://127.0.0.1:8001",
+        alias="ALLOWED_ORIGINS",
+        description="Allowed CORS origins (comma-separated or JSON array)",
     )
 
-    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @field_validator("ALLOWED_ORIGINS_STR", mode="before")
     @classmethod
-    def parse_cors_origins(cls, v):
+    def parse_cors_origins_raw(cls, v):
+        """Handle JSON array, comma-separated string, or empty value."""
+        if v is None or v == "":
+            return "http://localhost:5173"  # Default if empty
+        if isinstance(v, list):
+            return ",".join(v)
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+            # Try JSON array first
+            if v.strip().startswith("["):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return ",".join(str(x) for x in parsed)
+                except json.JSONDecodeError:
+                    pass
+            return v
+        return str(v)
+
+    @property
+    def ALLOWED_ORIGINS(self) -> List[str]:
+        """Get allowed origins as a list."""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS_STR.split(",") if origin.strip()]
 
     FRONTEND_URL: str = Field(
         default="http://localhost:5173", description="Frontend URL for redirects"
@@ -132,7 +144,8 @@ class Settings(BaseSettings):
     def add_frontend_url_to_cors(self):
         """Ensure FRONTEND_URL is allowed for CORS."""
         if self.FRONTEND_URL and self.FRONTEND_URL not in self.ALLOWED_ORIGINS:
-            self.ALLOWED_ORIGINS = list(self.ALLOWED_ORIGINS) + [self.FRONTEND_URL]
+            # Append to the raw string since ALLOWED_ORIGINS is a property
+            self.ALLOWED_ORIGINS_STR = f"{self.ALLOWED_ORIGINS_STR},{self.FRONTEND_URL}"
         return self
 
     # ==============================
