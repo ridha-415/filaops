@@ -364,9 +364,11 @@ async def get_dashboard_summary(
     # Create lookup dict for fast access
     inventory_lookup = {row.product_id: float(row.total_available) for row in inventory_by_product}
 
-    # Get all products with reorder points
+    # Get all STOCKED products with reorder points
+    # Only stocked items should trigger reorder point alerts (matches /items/low-stock logic)
     products_with_reorder = db.query(Product.id, Product.reorder_point).filter(
         Product.active.is_(True),  # noqa: E712
+        Product.stocking_policy == 'stocked',  # Only stocked items for reorder alerts
         Product.reorder_point.isnot(None),
         Product.reorder_point > 0
     ).all()
