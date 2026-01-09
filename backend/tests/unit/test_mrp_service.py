@@ -55,6 +55,7 @@ def create_all_tables():
         Column('category', String(100), nullable=True),
         Column('unit', String(20), default='EA'),
         Column('purchase_uom', String(20), default='EA'),
+        Column('purchase_factor', Numeric(18, 6), nullable=True),
         Column('item_type', String(20), default='finished_good'),
         Column('procurement_type', String(20), default='buy'),
         Column('category_id', Integer, nullable=True),
