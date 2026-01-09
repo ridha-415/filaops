@@ -143,6 +143,92 @@ async def get_supported_brands(
 
 
 # ============================================================================
+# Active Work Tracking (must be before /{printer_id} to avoid route conflicts)
+# ============================================================================
+
+@router.get("/active-work")
+async def get_printers_active_work(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get active/scheduled work for all printers.
+
+    Returns a mapping of printer_id -> current work info based on
+    production order operations scheduled to their work centers.
+
+    Community feature: Shows scheduled work from production order operations.
+    Pro feature (future): Live MQTT status with actual print progress.
+    """
+    from sqlalchemy.orm import joinedload
+
+    # Get all active printers with work centers
+    printers = db.query(Printer).filter(
+        Printer.active.is_(True),
+        Printer.work_center_id.isnot(None)
+    ).all()
+
+    if not printers:
+        return {"printers": {}}
+
+    # Get work center IDs
+    work_center_ids = [p.work_center_id for p in printers]
+
+    # Find running or queued operations for these work centers
+    active_ops = db.query(ProductionOrderOperation).options(
+        joinedload(ProductionOrderOperation.production_order).joinedload(ProductionOrder.product)
+    ).filter(
+        ProductionOrderOperation.work_center_id.in_(work_center_ids),
+        ProductionOrderOperation.status.in_(['running', 'queued'])
+    ).order_by(
+        ProductionOrderOperation.status.desc(),  # running first
+        ProductionOrderOperation.scheduled_start
+    ).all()
+
+    # Build work center -> operations mapping
+    wc_ops = {}
+    for op in active_ops:
+        if op.work_center_id not in wc_ops:
+            wc_ops[op.work_center_id] = []
+        wc_ops[op.work_center_id].append(op)
+
+    # Build printer -> work info mapping
+    result = {}
+    for printer in printers:
+        ops = wc_ops.get(printer.work_center_id, [])
+
+        # Get the first running operation, or first queued if none running
+        current_op = None
+        for op in ops:
+            if op.status == 'running':
+                current_op = op
+                break
+        if not current_op and ops:
+            current_op = ops[0]  # First queued
+
+        if current_op:
+            po = current_op.production_order
+            product = po.product if po else None
+            result[printer.id] = {
+                "production_order_code": po.code if po else None,
+                "production_order_id": po.id if po else None,
+                "operation_status": current_op.status,
+                "operation_name": current_op.operation_name,
+                "product_sku": product.sku if product else None,
+                "product_name": product.name if product else None,
+                "quantity_ordered": float(po.quantity_ordered) if po else None,
+                "quantity_completed": float(po.quantity_completed) if po else 0,
+                "scheduled_start": current_op.scheduled_start.isoformat() if current_op.scheduled_start else None,
+                "scheduled_end": current_op.scheduled_end.isoformat() if current_op.scheduled_end else None,
+                "queue_depth": len([o for o in ops if o.status == 'queued']),
+            }
+        else:
+            result[printer.id] = None
+
+    return {"printers": result}
+
+
+# ============================================================================
 # Printer CRUD
 # ============================================================================
 
@@ -668,158 +754,4 @@ async def import_printers_csv(
         skipped=skipped,
         errors=errors,
     )
-
-
-# ============================================================================
-# Active Work Tracking
-# ============================================================================
-
-@router.get("/active-work")
-async def get_printers_active_work(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Get active/scheduled work for all printers.
-
-    Returns a mapping of printer_id -> current work info based on
-    production order operations scheduled to their work centers.
-
-    Community feature: Shows scheduled work from production order operations.
-    Pro feature (future): Live MQTT status with actual print progress.
-    """
-    from sqlalchemy.orm import joinedload
-
-    # Get all active printers with work centers
-    printers = db.query(Printer).filter(
-        Printer.active.is_(True),  # noqa: E712  # noqa: E712
-        Printer.work_center_id.isnot(None)
-    ).all()
-
-    if not printers:
-        return {"printers": {}}
-
-    # Get work center IDs
-    work_center_ids = [p.work_center_id for p in printers]
-
-    # Find running or queued operations for these work centers
-    active_ops = db.query(ProductionOrderOperation).options(
-        joinedload(ProductionOrderOperation.production_order).joinedload(ProductionOrder.product)
-    ).filter(
-        ProductionOrderOperation.work_center_id.in_(work_center_ids),
-        ProductionOrderOperation.status.in_(['running', 'queued'])
-    ).order_by(
-        ProductionOrderOperation.status.desc(),  # running first
-        ProductionOrderOperation.scheduled_start
-    ).all()
-
-    # Build work center -> operations mapping
-    wc_ops = {}
-    for op in active_ops:
-        if op.work_center_id not in wc_ops:
-            wc_ops[op.work_center_id] = []
-        wc_ops[op.work_center_id].append(op)
-
-    # Build printer -> work info mapping
-    result = {}
-    for printer in printers:
-        ops = wc_ops.get(printer.work_center_id, [])
-
-        # Get the first running operation, or first queued if none running
-        current_op = None
-        for op in ops:
-            if op.status == 'running':
-                current_op = op
-                break
-        if not current_op and ops:
-            current_op = ops[0]  # First queued
-
-        if current_op:
-            po = current_op.production_order
-            product = po.product if po else None
-            result[printer.id] = {
-                "production_order_code": po.code if po else None,
-                "production_order_id": po.id if po else None,
-                "operation_status": current_op.status,
-                "operation_name": current_op.operation_name,
-                "product_sku": product.sku if product else None,
-                "product_name": product.name if product else None,
-                "quantity_ordered": float(po.quantity_ordered) if po else None,
-                "quantity_completed": float(po.quantity_completed) if po else 0,
-                "scheduled_start": current_op.scheduled_start.isoformat() if current_op.scheduled_start else None,
-                "scheduled_end": current_op.scheduled_end.isoformat() if current_op.scheduled_end else None,
-                "queue_depth": len([o for o in ops if o.status == 'queued']),
-            }
-        else:
-            result[printer.id] = None
-
-    return {"printers": result}
-
-
-@router.get("/{printer_id}/active-work")
-async def get_printer_active_work(
-    printer_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Get active/scheduled work for a specific printer.
-    """
-    from sqlalchemy.orm import joinedload
-
-    printer = db.query(Printer).filter(Printer.id == printer_id).first()
-    if not printer:
-        raise HTTPException(status_code=404, detail="Printer not found")
-
-    if not printer.work_center_id:
-        return {"work": None, "message": "Printer not assigned to a work center"}
-
-    # Find running or queued operations for this work center
-    ops = db.query(ProductionOrderOperation).options(
-        joinedload(ProductionOrderOperation.production_order).joinedload(ProductionOrder.product)
-    ).filter(
-        ProductionOrderOperation.work_center_id == printer.work_center_id,
-        ProductionOrderOperation.status.in_(['running', 'queued'])
-    ).order_by(
-        ProductionOrderOperation.status.desc(),
-        ProductionOrderOperation.scheduled_start
-    ).all()
-
-    if not ops:
-        return {"work": None, "message": "No active work scheduled"}
-
-    # Current = first running, or first queued
-    current = None
-    for op in ops:
-        if op.status == 'running':
-            current = op
-            break
-    if not current:
-        current = ops[0]
-
-    po = current.production_order
-    product = po.product if po else None
-
-    return {
-        "work": {
-            "production_order_code": po.code if po else None,
-            "production_order_id": po.id if po else None,
-            "operation_status": current.status,
-            "operation_name": current.operation_name,
-            "product_sku": product.sku if product else None,
-            "product_name": product.name if product else None,
-            "quantity_ordered": float(po.quantity_ordered) if po else None,
-            "quantity_completed": float(po.quantity_completed) if po else 0,
-            "scheduled_start": current.scheduled_start.isoformat() if current.scheduled_start else None,
-            "scheduled_end": current.scheduled_end.isoformat() if current.scheduled_end else None,
-        },
-        "queue": [
-            {
-                "production_order_code": o.production_order.code if o.production_order else None,
-                "operation_name": o.operation_name,
-                "status": o.status,
-            }
-            for o in ops[1:5]  # Next 4 in queue
-        ]
-    }
 

@@ -92,7 +92,7 @@ def build_operation_response(op, po, next_op=None) -> OperationResponse:
     # Get sales order code if linked
     sales_order_code = None
     if po.sales_order:
-        sales_order_code = po.sales_order.code
+        sales_order_code = po.sales_order.order_number
 
     return OperationResponse(
         id=op.id,
