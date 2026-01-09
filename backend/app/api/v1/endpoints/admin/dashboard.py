@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, or_
 from pydantic import BaseModel
 
 from app.db.session import get_db
@@ -370,7 +370,8 @@ async def get_dashboard_summary(
         Product.active.is_(True),  # noqa: E712
         Product.stocking_policy == 'stocked',  # Only stocked items for reorder alerts
         Product.reorder_point.isnot(None),
-        Product.reorder_point > 0
+        Product.reorder_point > 0,
+        or_(Product.procurement_type != 'make', Product.procurement_type.is_(None)),  # Exclude make items
     ).all()
 
     # Check each product against inventory (all in-memory, no additional queries)
