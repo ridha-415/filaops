@@ -1,7 +1,7 @@
 import { Outlet, Link, NavLink, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import ProFeaturesAnnouncement from "./ProFeaturesAnnouncement";
-import UpdateNotification from "./UpdateNotification";
+// import UpdateNotification from "./UpdateNotification"; // TODO: Re-enable once upgrade endpoint exists
 import SecurityBadge from "./SecurityBadge";
 import useActivityTokenRefresh from "../hooks/useActivityTokenRefresh";
 import { getCurrentVersion, getCurrentVersionSync, formatVersion } from "../utils/version";
@@ -270,21 +270,22 @@ const InventoryIcon = () => (
   </svg>
 );
 
-const AnalyticsIcon = () => (
-  <svg
-    className="w-5 h-5"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-    />
-  </svg>
-);
+// TODO: Re-enable when Pro analytics are implemented
+// const AnalyticsIcon = () => (
+//   <svg
+//     className="w-5 h-5"
+//     fill="none"
+//     stroke="currentColor"
+//     viewBox="0 0 24 24"
+//   >
+//     <path
+//       strokeLinecap="round"
+//       strokeLinejoin="round"
+//       strokeWidth={2}
+//       d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+//     />
+//   </svg>
+// );
 
 const AccountingIcon = () => (
   <svg
@@ -462,12 +463,13 @@ const navGroups = [
         icon: SettingsIcon,
         adminOnly: true,
       },
-      {
-        path: "/admin/analytics",
-        label: "Analytics",
-        icon: AnalyticsIcon,
-        adminOnly: true,
-      },
+      // TODO: Re-enable Analytics when Pro version analytics are implemented
+      // {
+      //   path: "/admin/analytics",
+      //   label: "Analytics",
+      //   icon: AnalyticsIcon,
+      //   adminOnly: true,
+      // },
       {
         path: "/admin/settings",
         label: "Settings",
@@ -702,7 +704,7 @@ export default function AdminLayout() {
           </nav>
         </aside>
         <div className="flex-1 flex flex-col">
-          {user && localStorage.getItem("adminToken") && <UpdateNotification />}
+          {/* TODO: Re-enable UpdateNotification once /api/v1/system/updates/upgrade endpoint is implemented */}
           <header className="sticky top-0 z-30 bg-gray-900/90 backdrop-blur-md border-b border-gray-800 px-6 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
