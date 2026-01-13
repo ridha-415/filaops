@@ -280,7 +280,7 @@ async def create_purchase_order(
     logger.info(f"Created PO {po.po_number} for vendor {vendor.name}")
 
     # Return full response
-    return await get_purchase_order(po.id, db)
+    return await get_purchase_order(po.id, current_user, db)
 
 
 @router.put("/{po_id}", response_model=PurchaseOrderResponse)
@@ -316,7 +316,7 @@ async def update_purchase_order(
     db.refresh(po)
 
     logger.info(f"Updated PO {po.po_number}")
-    return await get_purchase_order(po.id, db)
+    return await get_purchase_order(po.id, current_user, db)
 
 
 @router.post("/{po_id}/lines", response_model=PurchaseOrderResponse)
@@ -368,7 +368,7 @@ async def add_po_line(
     db.commit()
     db.refresh(po)
 
-    return await get_purchase_order(po.id, db)
+    return await get_purchase_order(po.id, current_user, db)
 
 
 @router.put("/{po_id}/lines/{line_id}", response_model=PurchaseOrderResponse)
@@ -429,7 +429,7 @@ async def update_po_line(
     db.refresh(po)
 
     logger.info(f"Updated line {line_id} on PO {po.po_number}")
-    return await get_purchase_order(po.id, db)
+    return await get_purchase_order(po.id, current_user, db)
 
 
 @router.delete("/{po_id}/lines/{line_id}")
@@ -560,7 +560,7 @@ async def update_po_status(
     db.refresh(po)
 
     logger.info(f"PO {po.po_number} status: {old_status} -> {new_status}")
-    return await get_purchase_order(po.id, db)
+    return await get_purchase_order(po.id, current_user, db)
 
 
 # ============================================================================
