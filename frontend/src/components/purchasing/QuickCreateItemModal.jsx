@@ -160,7 +160,7 @@ export default function QuickCreateItemModal({ onClose, onCreated, initialName =
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white"
                 >
                   <option value="supply">Supply</option>
-                  <option value="raw_material">Raw Material</option>
+                  <option value="material">Material (Filament)</option>
                   <option value="component">Component</option>
                   <option value="finished_good">Finished Good</option>
                 </select>

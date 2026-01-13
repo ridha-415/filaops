@@ -292,7 +292,9 @@ export default function BOMEditor({
 
     // Set unit based on component type
     const defaultUnit =
-      component.unit || (component.item_type === "supply" ? "KG" : "EA");
+      component.unit ||
+      (component.item_type === "material" ? "G" :
+       component.item_type === "supply" ? "KG" : "EA");
 
     setLines([
       ...lines,
@@ -622,7 +624,8 @@ export default function BOMEditor({
                         component_id: selectedId,
                         unit:
                           selected?.unit ||
-                          (selected?.item_type === "supply" ? "KG" : "EA"),
+                          (selected?.item_type === "material" ? "G" :
+                           selected?.item_type === "supply" ? "KG" : "EA"),
                       });
                     }}
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:border-blue-500 focus:outline-none"

@@ -33,11 +33,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.db.session import SessionLocal
 from app.core.settings import settings
 from app.models import (
-    Product, BOM, BOMLine, WorkCenter, Machine, 
+    Product, BOM, BOMLine, WorkCenter, Machine,
     ProductionOrder, Inventory, InventoryLocation,
     SalesOrder, PurchaseOrder, PurchaseOrderLine,
     ItemCategory, Vendor, User
 )
+from app.models.company_settings import CompanySettings
+from pathlib import Path
 
 def create_test_data():
     """Create comprehensive test data for production workflows"""
@@ -54,7 +56,90 @@ def create_test_data():
             return
         
         admin_id = str(admin_user.id)
-        
+
+        # ========================================
+        # 0. COMPANY SETTINGS
+        # ========================================
+        print("\n🏢 Setting up company settings...")
+
+        existing_settings = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+
+        # Load FilaOps logo - check multiple paths (local dev vs Docker)
+        logo_paths = [
+            Path(__file__).parent / "assets" / "logo_full.png",  # scripts/assets/ (Docker)
+            Path(__file__).parent.parent.parent / "frontend" / "src" / "assets" / "logo_full.png",  # local dev
+            Path(__file__).parent.parent.parent / "docs" / "icon" / "logo_full.png",  # docs folder
+        ]
+        logo_data = None
+        logo_filename = None
+        logo_mime_type = None
+
+        for logo_path in logo_paths:
+            if logo_path.exists():
+                with open(logo_path, "rb") as f:
+                    logo_data = f.read()
+                logo_filename = "logo_full.png"
+                logo_mime_type = "image/png"
+                print(f"   ✅ Loaded logo from {logo_path}")
+                break
+        else:
+            print(f"   ⚠️ Logo not found (checked {len(logo_paths)} paths)")
+
+        if not existing_settings:
+            company_settings = CompanySettings(
+                id=1,
+                # Company Info
+                company_name="Precision Print Works",
+                company_address_line1="1234 Maker Avenue",
+                company_address_line2="Suite 100",
+                company_city="Austin",
+                company_state="TX",
+                company_zip="78701",
+                company_country="USA",
+                company_phone="(512) 555-3D4U",
+                company_email="orders@precisionprintworks.com",
+                company_website="https://precisionprintworks.com",
+                # Logo
+                logo_data=logo_data,
+                logo_filename=logo_filename,
+                logo_mime_type=logo_mime_type,
+                # Tax Configuration
+                tax_enabled=True,
+                tax_rate=Decimal("0.0825"),  # 8.25% Texas sales tax
+                tax_name="Sales Tax",
+                tax_registration_number="TX-12345678",
+                # Quote Settings
+                default_quote_validity_days=30,
+                quote_terms="Payment due within 30 days of invoice. All sales final on custom orders.",
+                quote_footer="Thank you for your business! - Precision Print Works",
+                # Invoice Settings
+                invoice_prefix="INV",
+                invoice_terms="Net 30. Late payments subject to 1.5% monthly interest.",
+                # Accounting
+                fiscal_year_start_month=1,
+                accounting_method="accrual",
+                currency_code="USD",
+                # Timezone & Business Hours
+                timezone="America/Chicago",
+                business_hours_start=8,
+                business_hours_end=17,
+                business_days_per_week=5,
+                business_work_days="0,1,2,3,4",
+            )
+            db.add(company_settings)
+            print("   ✅ Created company: Precision Print Works")
+        else:
+            # Update existing with logo if missing
+            if existing_settings.logo_data is None and logo_data:
+                setattr(existing_settings, "logo_data", logo_data)
+                setattr(existing_settings, "logo_filename", logo_filename)
+                setattr(existing_settings, "logo_mime_type", logo_mime_type)
+                print("   ✅ Updated existing settings with logo")
+            else:
+                print("   ⏭️ Company settings already exist")
+
+        db.flush()
+
         # ========================================
         # 1. ITEM CATEGORIES
         # ========================================
@@ -110,30 +195,61 @@ def create_test_data():
             hourly_rate=Decimal("15.00")
         )
         
-        # Assembly Work Center  
+        # Assembly Work Center
         assembly_wc = WorkCenter(
             code="WC-ASM",
             name="Assembly Station",
             description="Manual assembly and finishing",
             hourly_rate=Decimal("25.00")
         )
-        
-        existing_printer_wc = db.query(WorkCenter).filter(WorkCenter.name == "3D Printer Pool").first()
-        existing_assembly_wc = db.query(WorkCenter).filter(WorkCenter.name == "Assembly Station").first()
-        
-        if not existing_printer_wc:
-            db.add(printer_wc)
-            print("   ✅ Created work center: 3D Printer Pool")
-        else:
-            printer_wc = existing_printer_wc
-            
-        if not existing_assembly_wc:
-            db.add(assembly_wc)
-            print("   ✅ Created work center: Assembly Station")
-        else:
-            assembly_wc = existing_assembly_wc
-            
+
+        # QC Work Center
+        qc_wc = WorkCenter(
+            code="WC-QC",
+            name="Quality Control",
+            description="Inspection and quality assurance",
+            hourly_rate=Decimal("20.00")
+        )
+
+        # Shipping Work Center
+        shipping_wc = WorkCenter(
+            code="WC-SHIP",
+            name="Shipping",
+            description="Packaging and shipping preparation",
+            hourly_rate=Decimal("18.00")
+        )
+
+        # Create or get work centers
+        work_centers_to_create = [
+            ("3D Printer Pool", printer_wc),
+            ("Assembly Station", assembly_wc),
+            ("Quality Control", qc_wc),
+            ("Shipping", shipping_wc),
+        ]
+
+        for wc_name, wc_obj in work_centers_to_create:
+            existing = db.query(WorkCenter).filter(WorkCenter.name == wc_name).first()
+            if not existing:
+                db.add(wc_obj)
+                print(f"   ✅ Created work center: {wc_name}")
+            else:
+                # Update reference to existing
+                if wc_name == "3D Printer Pool":
+                    printer_wc = existing
+                elif wc_name == "Assembly Station":
+                    assembly_wc = existing
+                elif wc_name == "Quality Control":
+                    qc_wc = existing
+                elif wc_name == "Shipping":
+                    shipping_wc = existing
+
         db.flush()
+
+        # Refresh references after flush
+        printer_wc = db.query(WorkCenter).filter(WorkCenter.name == "3D Printer Pool").first()
+        assembly_wc = db.query(WorkCenter).filter(WorkCenter.name == "Assembly Station").first()
+        qc_wc = db.query(WorkCenter).filter(WorkCenter.name == "Quality Control").first()
+        shipping_wc = db.query(WorkCenter).filter(WorkCenter.name == "Shipping").first()
         
         # Create machines
         machines = [
@@ -164,10 +280,52 @@ def create_test_data():
             {
                 "code": "ASM-001",
                 "name": "Assembly-001",
-                "description": "Manual Assembly Station #1", 
+                "description": "Manual Assembly Station #1",
                 "work_center": assembly_wc,
                 "status": "available",
                 "machine_type": "assembly_station"
+            },
+            {
+                "code": "ASM-002",
+                "name": "Assembly-002",
+                "description": "Manual Assembly Station #2",
+                "work_center": assembly_wc,
+                "status": "available",
+                "machine_type": "assembly_station"
+            },
+            # QC Stations
+            {
+                "code": "QC-001",
+                "name": "QC-Station-001",
+                "description": "Quality Control Inspection Station #1",
+                "work_center": qc_wc,
+                "status": "available",
+                "machine_type": "inspection_station"
+            },
+            {
+                "code": "QC-002",
+                "name": "QC-Station-002",
+                "description": "Quality Control Inspection Station #2",
+                "work_center": qc_wc,
+                "status": "available",
+                "machine_type": "inspection_station"
+            },
+            # Shipping Stations
+            {
+                "code": "SHIP-001",
+                "name": "Pack-Station-001",
+                "description": "Packaging & Shipping Station #1",
+                "work_center": shipping_wc,
+                "status": "available",
+                "machine_type": "packing_station"
+            },
+            {
+                "code": "SHIP-002",
+                "name": "Pack-Station-002",
+                "description": "Packaging & Shipping Station #2",
+                "work_center": shipping_wc,
+                "status": "available",
+                "machine_type": "packing_station"
             }
         ]
         
@@ -264,31 +422,35 @@ def create_test_data():
         print("\n🔧 Creating products...")
         
         products_data = [
-            # Raw Materials
+            # Raw Materials (filament: purchased in KG, stored/consumed in G)
             {
-                "sku": "PLA-BLK-1KG",
-                "name": "PLA Filament Black 1kg",
-                "item_type": "supply", 
+                "sku": "PLA-BLK",
+                "name": "PLA Filament Black",
+                "item_type": "supply",
                 "category": categories["raw_material"],
-                "unit": "KG",
+                "unit": "G",                        # Storage/consumption UOM
+                "purchase_uom": "KG",               # Purchase UOM (how vendors sell it)
+                "purchase_factor": Decimal("1000"), # 1 KG = 1000 G
                 "procurement_type": "buy",
-                "standard_cost": Decimal("25.00"),
-                "safety_stock": Decimal("5.0"),
-                "reorder_point": Decimal("10.0"),
-                "min_order_qty": Decimal("10.0"),
+                "standard_cost": Decimal("0.025"),  # $/g (stored per consumption unit)
+                "safety_stock": Decimal("5000"),    # 5kg in grams
+                "reorder_point": Decimal("10000"),  # 10kg in grams
+                "min_order_qty": Decimal("1"),      # 1 KG minimum (in purchase UOM)
                 "lead_time_days": 7
             },
             {
-                "sku": "PLA-WHT-1KG",
-                "name": "PLA Filament White 1kg", 
+                "sku": "PLA-WHT",
+                "name": "PLA Filament White",
                 "item_type": "supply",
                 "category": categories["raw_material"],
-                "unit": "KG",
+                "unit": "G",                        # Storage/consumption UOM
+                "purchase_uom": "KG",               # Purchase UOM (how vendors sell it)
+                "purchase_factor": Decimal("1000"), # 1 KG = 1000 G
                 "procurement_type": "buy",
-                "standard_cost": Decimal("25.00"),
-                "safety_stock": Decimal("5.0"),
-                "reorder_point": Decimal("10.0"),
-                "min_order_qty": Decimal("10.0"),
+                "standard_cost": Decimal("0.025"),  # $/g (stored per consumption unit)
+                "safety_stock": Decimal("5000"),    # 5kg in grams
+                "reorder_point": Decimal("10000"),  # 10kg in grams
+                "min_order_qty": Decimal("1"),      # 1 KG minimum (in purchase UOM)
                 "lead_time_days": 7
             },
             {
@@ -391,6 +553,8 @@ def create_test_data():
                     item_type=product_data["item_type"],
                     category_id=product_data["category"].id,
                     unit=product_data["unit"],
+                    purchase_uom=product_data.get("purchase_uom", product_data["unit"]),
+                    purchase_factor=product_data.get("purchase_factor"),
                     procurement_type=product_data["procurement_type"],
                     has_bom=product_data.get("has_bom", False),
                     selling_price=product_data.get("selling_price"),
@@ -418,7 +582,7 @@ def create_test_data():
                 "product_sku": "BRACKET-001",
                 "description": "Simple 3D printed bracket",
                 "lines": [
-                    {"component_sku": "PLA-BLK-1KG", "quantity": Decimal("0.025"), "unit": "KG"},
+                    {"component_sku": "PLA-BLK", "quantity": Decimal("25"), "unit": "G"},  # 25g per bracket
                     {"component_sku": "BOX-SMALL", "quantity": Decimal("1"), "unit": "EA"}
                 ]
             },
@@ -426,7 +590,7 @@ def create_test_data():
                 "product_sku": "HOUSING-001", 
                 "description": "Electronic housing with fasteners",
                 "lines": [
-                    {"component_sku": "PLA-BLK-1KG", "quantity": Decimal("0.045"), "unit": "KG"},
+                    {"component_sku": "PLA-BLK", "quantity": Decimal("45"), "unit": "G"},  # 45g per housing
                     {"component_sku": "SCREW-M3X10", "quantity": Decimal("4"), "unit": "EA"},
                     {"component_sku": "BOX-SMALL", "quantity": Decimal("1"), "unit": "EA"},
                     {"component_sku": "BUBBLE-WRAP", "quantity": Decimal("0.1"), "unit": "ROLL"}
@@ -485,9 +649,9 @@ def create_test_data():
         print("\n📦 Creating inventory...")
         
         inventory_data = [
-            # Raw materials - good stock levels
-            {"product_sku": "PLA-BLK-1KG", "location": "Main Warehouse", "on_hand": Decimal("45.5"), "allocated": Decimal("5.0")},
-            {"product_sku": "PLA-WHT-1KG", "location": "Main Warehouse", "on_hand": Decimal("32.8"), "allocated": Decimal("2.5")},
+            # Raw materials - good stock levels (in grams)
+            {"product_sku": "PLA-BLK", "location": "Main Warehouse", "on_hand": Decimal("45500"), "allocated": Decimal("5000")},  # ~45.5kg
+            {"product_sku": "PLA-WHT", "location": "Main Warehouse", "on_hand": Decimal("32800"), "allocated": Decimal("2500")},  # ~32.8kg
             {"product_sku": "SCREW-M3X10", "location": "Main Warehouse", "on_hand": Decimal("2500"), "allocated": Decimal("200")},
             
             # Packaging materials
@@ -606,8 +770,9 @@ def create_test_data():
                 "order_date": date.today() - timedelta(days=3),
                 "expected_date": date.today() + timedelta(days=4),
                 "lines": [
-                    {"product_sku": "PLA-BLK-1KG", "quantity": Decimal("20"), "unit_cost": Decimal("24.50"), "received": Decimal("0")},
-                    {"product_sku": "PLA-WHT-1KG", "quantity": Decimal("15"), "unit_cost": Decimal("24.50"), "received": Decimal("0")}
+                    # PO quantities in KG (purchase UOM), converts to G on receipt
+                    {"product_sku": "PLA-BLK", "quantity": Decimal("20"), "unit_cost": Decimal("24.50"), "received": Decimal("0")},  # 20 KG @ $24.50/KG
+                    {"product_sku": "PLA-WHT", "quantity": Decimal("15"), "unit_cost": Decimal("24.50"), "received": Decimal("0")}   # 15 KG @ $24.50/KG
                 ]
             },
             {
@@ -737,30 +902,39 @@ def create_test_data():
         
         # Summary
         print("\n📊 Data Summary:")
+        print(f"   • Company: Precision Print Works (with logo)")
         print(f"   • Products: {len(products_data)}")
         print(f"   • BOMs: {len(bom_data)}")
         print(f"   • Production Orders: {len(production_orders_data)}")
         print(f"   • Purchase Orders: {len(purchase_orders_data)}")
         print(f"   • Sales Orders: {len(sales_orders_data)}")
-        print(f"   • Work Centers: 2")
-        print(f"   • Machines: 4")
+        print(f"   • Work Centers: 4 (Print, Assembly, QC, Shipping)")
+        print(f"   • Machines/Resources: 9")
         print(f"   • Vendors: {len(vendors_data)}")
         print(f"   • Inventory Locations: {len(locations_data)}")
-        
+
+        print("\n🏭 Work Center Flow (E2E Production):")
+        print("   1. 3D Printer Pool → Print parts")
+        print("   2. Assembly Station → Assemble components")
+        print("   3. Quality Control → Inspect finished goods")
+        print("   4. Shipping → Package and ship")
+
         print("\n🔬 Ready for Testing:")
-        print("   ✅ Production workflow (Draft → Released → In Progress → Complete)")
+        print("   ✅ Full E2E production workflow (Print → Assembly → QC → Ship)")
         print("   ✅ BOM explosion and material requirements")
         print("   ✅ Inventory allocation and consumption")
         print("   ✅ MRP calculations (shortages and planned orders)")
         print("   ✅ Scheduling and capacity planning")
         print("   ✅ Purchase order receiving workflow")
         print("   ✅ Multi-level assembly manufacturing")
-        
+
         print(f"\n🌐 Frontend URLs to test:")
+        print(f"   • Settings (Company): http://localhost:5173/admin/settings")
         print(f"   • Production: http://localhost:5173/admin/production")
         print(f"   • Items: http://localhost:5173/admin/items")
         print(f"   • Purchasing: http://localhost:5173/admin/purchasing")
         print(f"   • BOMs: http://localhost:5173/admin/bom")
+        print(f"   • Work Centers: http://localhost:5173/admin/manufacturing")
         
     except Exception as e:
         print(f"\n❌ Error creating test data: {e}")

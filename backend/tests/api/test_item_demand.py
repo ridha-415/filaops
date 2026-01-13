@@ -285,8 +285,8 @@ class TestItemDemandWithScenarios:
         data = response.json()
 
         # Verify quantities from scenario
-        # PLA: 10g on hand, needs 12.5g for BOM (25 units * 0.5g)
-        assert parse_decimal(data["quantities"]["on_hand"]) == Decimal("10")
+        # PLA: 10000g (10kg) on hand, needs 12500g for BOM (50 units * 250g)
+        assert parse_decimal(data["quantities"]["on_hand"]) == Decimal("10000")
         assert parse_decimal(data["quantities"]["allocated"]) > 0  # Some allocation from WO
 
         # Verify the demand chain is visible

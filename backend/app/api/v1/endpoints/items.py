@@ -34,6 +34,12 @@ from app.schemas.item import (
 )
 from app.schemas.item_demand import ItemDemandSummary
 from app.services.item_demand import get_item_demand_summary
+from app.core.uom_config import (
+    DEFAULT_MATERIAL_UOM,
+    get_uom_config,
+    is_material,
+    get_default_material_sku_prefix,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -378,6 +384,14 @@ async def list_items(
         if item_type == "filament":
             # Filaments are supply items with a material_type_id
             query = query.filter(Product.material_type_id.isnot(None))
+        elif item_type == "material":
+            # Material type - includes both new item_type='material' and legacy filaments
+            query = query.filter(
+                or_(
+                    Product.item_type == "material",
+                    Product.material_type_id.isnot(None)
+                )
+            )
         else:
             query = query.filter(Product.item_type == item_type)
 
@@ -485,6 +499,7 @@ async def create_item(
             "component": "COMP",
             "supply": "SUP",
             "service": "SRV",
+            "material": get_default_material_sku_prefix(),  # "MAT"
         }.get(request.item_type.value if hasattr(request.item_type, 'value') else str(request.item_type), "ITM")
         
         # Find the highest existing SKU with this prefix
@@ -518,13 +533,32 @@ async def create_item(
         if not category:
             raise HTTPException(status_code=400, detail=f"Category {request.category_id} not found")
 
+    # Get item_type value for UOM configuration
+    item_type_value = request.item_type.value if hasattr(request.item_type, 'value') else str(request.item_type)
+
+    # Auto-configure UOM for materials (default to filament profile: G/KG/1000)
+    # Users can override these values for CNC/laser materials
+    if item_type_value == 'material':
+        # Use request values if provided, otherwise use defaults
+        final_unit = request.unit if request.unit else DEFAULT_MATERIAL_UOM.unit  # G
+        final_purchase_uom = request.purchase_uom if request.purchase_uom else DEFAULT_MATERIAL_UOM.purchase_uom  # KG
+        final_purchase_factor = getattr(request, 'purchase_factor', None) or DEFAULT_MATERIAL_UOM.purchase_factor  # 1000
+        final_is_raw_material = True  # Materials are always raw materials
+    else:
+        # Use provided values or defaults
+        final_unit = request.unit or "EA"
+        final_purchase_uom = request.purchase_uom or request.unit or "EA"
+        final_purchase_factor = getattr(request, 'purchase_factor', None)
+        final_is_raw_material = request.is_raw_material or False
+
     item = Product(
         sku=request.sku.upper(),
         name=request.name,
         description=request.description,
-        unit=request.unit or "EA",
-        purchase_uom=request.purchase_uom or request.unit or "EA",  # Default to unit if not specified
-        item_type=request.item_type.value if request.item_type else "finished_good",
+        unit=final_unit,
+        purchase_uom=final_purchase_uom,
+        purchase_factor=final_purchase_factor,
+        item_type=item_type_value,
         procurement_type=request.procurement_type.value if request.procurement_type else "buy",
         category_id=request.category_id,
         cost_method=request.cost_method.value if request.cost_method else "average",
@@ -540,7 +574,7 @@ async def create_item(
         stocking_policy=request.stocking_policy.value if request.stocking_policy else "on_demand",
         upc=request.upc,
         legacy_sku=request.legacy_sku,
-        is_raw_material=request.is_raw_material or False,
+        is_raw_material=final_is_raw_material,
         track_lots=request.track_lots or False,
         track_serials=request.track_serials or False,
         active=True,
@@ -1404,6 +1438,9 @@ async def import_items_csv(
                         "component": "component",
                         "supply": "supply",
                         "service": "service",
+                        "material": "material",
+                        "filament": "material",
+                        "raw_material": "material",
                     }
                     existing.item_type = item_type_map.get(item_type_raw.lower(), existing.item_type)
                 
@@ -1707,7 +1744,7 @@ async def bulk_update_items(
                 if hasattr(item_type_value, 'value'):
                     item_type_value = item_type_value.value
                 # Validate item type
-                valid_item_types = ['finished_good', 'component', 'supply', 'service']
+                valid_item_types = ['finished_good', 'component', 'supply', 'service', 'material']
                 if item_type_value in valid_item_types:
                     item.item_type = item_type_value
                 else:

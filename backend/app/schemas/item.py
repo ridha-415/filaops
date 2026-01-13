@@ -20,10 +20,11 @@ from enum import Enum
 
 class ItemType(str, Enum):
     """Types of items in the system"""
-    FINISHED_GOOD = "finished_good"
-    COMPONENT = "component"
-    SUPPLY = "supply"
-    SERVICE = "service"
+    FINISHED_GOOD = "finished_good"  # Sellable products
+    COMPONENT = "component"          # Parts used in assembly
+    SUPPLY = "supply"                # Consumables and supplies
+    SERVICE = "service"              # Non-physical services
+    MATERIAL = "material"            # Raw materials (filament, sheet stock, etc.) - auto-configures UOM
 
 
 class CostMethod(str, Enum):

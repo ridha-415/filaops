@@ -84,7 +84,7 @@ class TestCriticalPathQuoteToShip:
             sku="PLA-E2E",
             name="PLA E2E Filament",
             unit="G",
-            standard_cost=Decimal("0.02"),
+            standard_cost=Decimal("20.00"),  # $/KG
         )
         
         box = create_test_material(
@@ -332,13 +332,13 @@ class TestCriticalPathQuoteToShip:
         assert widget.id is not None, "Widget not created"
         assert widget.has_bom is True, "Widget should have BOM flag"
 
-        # Create raw material (filament in grams)
+        # Create raw material (filament: costs stored per KG)
         pla = create_test_material(
             db_session,
             sku="PLA-BLACK-TEST",
             name="PLA Black Test Filament",
             unit="G",  # Grams - base unit
-            standard_cost=Decimal("0.02"),  # $0.02 per gram
+            standard_cost=Decimal("20.00"),  # $20.00 per KG
         )
         assert pla.id is not None, "PLA not created"
         assert pla.unit == "G", "PLA should be in grams"

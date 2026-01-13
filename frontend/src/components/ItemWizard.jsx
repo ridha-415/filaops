@@ -7,6 +7,7 @@ const ITEM_TYPES = [
   { value: "component", label: "Component", color: "purple", defaultProcurement: "buy" },
   { value: "supply", label: "Supply", color: "orange", defaultProcurement: "buy" },
   { value: "service", label: "Service", color: "green", defaultProcurement: "buy" },
+  { value: "material", label: "Material (Filament)", color: "yellow", defaultProcurement: "buy" },
 ];
 
 // Procurement type options (Make vs Buy)

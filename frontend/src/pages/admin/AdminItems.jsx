@@ -18,7 +18,8 @@ import { RequiredIndicator } from "../../components/ErrorMessage";
 const ITEM_TYPES = [
   { value: "finished_good", label: "Finished Good", color: "blue" },
   { value: "component", label: "Component", color: "purple" },
-  { value: "filament", label: "Filament", color: "orange" },
+  { value: "material", label: "Material", color: "orange" },
+  { value: "filament", label: "Filament (Legacy)", color: "orange" },
   { value: "supply", label: "Supply", color: "yellow" },
   { value: "service", label: "Service", color: "green" },
 ];

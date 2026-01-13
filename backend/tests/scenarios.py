@@ -89,20 +89,25 @@ def seed_basic(db: Session) -> Dict[str, Any]:
     amazon = create_test_vendor(db, name="Amazon Business", lead_time_days=2)
     filament_vendor = create_test_vendor(db, name="Filament World", lead_time_days=5)
 
-    # Raw materials
+    # Raw materials (filament: purchased in KG, stored/consumed in G)
+    # Costs are stored per purchase_uom ($/KG) to match vendor pricing
     pla_black = create_test_material(
         db,
-        sku="FIL-PLA-BLK-1KG",
-        name="Black PLA 1kg",
-        unit="KG",
-        standard_cost=Decimal("25.00")
+        sku="PLA-BLK",
+        name="PLA Filament Black",
+        unit="G",
+        purchase_uom="KG",
+        purchase_factor=Decimal("1000"),  # 1 KG = 1000 G
+        standard_cost=Decimal("25.00")    # $/KG
     )
     pla_white = create_test_material(
         db,
-        sku="FIL-PLA-WHT-1KG",
-        name="White PLA 1kg",
-        unit="KG",
-        standard_cost=Decimal("25.00")
+        sku="PLA-WHT",
+        name="PLA Filament White",
+        unit="G",
+        purchase_uom="KG",
+        purchase_factor=Decimal("1000"),  # 1 KG = 1000 G
+        standard_cost=Decimal("25.00")    # $/KG
     )
     hardware_kit = create_test_material(
         db,
@@ -132,20 +137,20 @@ def seed_basic(db: Session) -> Dict[str, Any]:
         standard_cost=Decimal("30.00")
     )
 
-    # BOMs
+    # BOMs (filament quantities in grams)
     widget_bom = create_test_bom(db, widget, lines=[
-        {"component": pla_black, "quantity": Decimal("0.15")},
+        {"component": pla_black, "quantity": Decimal("150")},  # 150g per widget
         {"component": hardware_kit, "quantity": Decimal("1")},
     ])
     gadget_bom = create_test_bom(db, gadget, lines=[
-        {"component": pla_black, "quantity": Decimal("0.25")},
-        {"component": pla_white, "quantity": Decimal("0.10")},
+        {"component": pla_black, "quantity": Decimal("250")},  # 250g per gadget
+        {"component": pla_white, "quantity": Decimal("100")},  # 100g per gadget
         {"component": hardware_kit, "quantity": Decimal("2")},
     ])
 
-    # Initial inventory
-    create_test_inventory(db, pla_black, Decimal("10"))  # 10 kg
-    create_test_inventory(db, pla_white, Decimal("5"))   # 5 kg
+    # Initial inventory (filament in grams)
+    create_test_inventory(db, pla_black, Decimal("10000"))  # 10 kg = 10000g
+    create_test_inventory(db, pla_white, Decimal("5000"))   # 5 kg = 5000g
     create_test_inventory(db, hardware_kit, Decimal("100"))  # 100 kits
 
     db.commit()
@@ -187,7 +192,10 @@ def seed_low_stock_with_allocations(db: Session) -> Dict[str, Any]:
     customer = db.query(User).filter_by(email="customer@filaops.test").first()
     gadget = db.query(Product).filter_by(sku="GADGET-PRO").first()
     vendor = db.query(Vendor).first()
-    pla_black = db.query(Product).filter_by(sku="FIL-PLA-BLK-1KG").first()
+    pla_black = db.query(Product).filter_by(sku="PLA-BLK").first()
+
+    if not customer or not gadget or not vendor or not pla_black:
+        raise ValueError("Base scenario data not found. Run seed_basic first.")
 
     # Create sales order for 50 gadgets
     so = create_test_sales_order(
@@ -209,21 +217,22 @@ def seed_low_stock_with_allocations(db: Session) -> Dict[str, Any]:
     )
 
     # This creates demand for:
-    # - 12.5 kg PLA black (50 × 0.25)
-    # - 5 kg PLA white (50 × 0.10)
+    # - 12500g PLA black (50 × 250g)
+    # - 5000g PLA white (50 × 100g)
     # - 100 hardware kits (50 × 2)
     # But we only have:
-    # - 10 kg PLA black (shortage of 2.5 kg)
-    # - 5 kg PLA white (exact)
+    # - 10000g PLA black (shortage of 2500g)
+    # - 5000g PLA white (exact)
     # - 100 hardware kits (exact)
 
     # Create a purchase order to cover the shortage
+    # PO is in KG (purchase UOM), inventory converts to G (storage UOM)
     po = create_test_purchase_order(
         db,
         vendor=vendor,
         status="ordered",
         lines=[
-            {"product": pla_black, "quantity": 5, "unit_cost": Decimal("25.00")}
+            {"product": pla_black, "quantity": 5, "unit_cost": Decimal("25.00")}  # 5 KG @ $25/KG
         ]
     )
 
@@ -237,9 +246,9 @@ def seed_low_stock_with_allocations(db: Session) -> Dict[str, Any]:
         "purchase_order": {"id": po.id, "po_number": po.po_number},
         "shortage": {
             "product_sku": pla_black.sku,
-            "on_hand": 10,
-            "needed": 12.5,
-            "shortage_qty": 2.5
+            "on_hand": 10000,   # grams
+            "needed": 12500,    # grams
+            "shortage_qty": 2500  # grams
         }
     }
 
@@ -365,13 +374,16 @@ def seed_full_demand_chain(db: Session) -> Dict[str, Any]:
         lead_time_days=3
     )
 
-    # Raw materials
+    # Raw materials (filament: purchased in KG, stored/consumed in G)
+    # Costs are stored per purchase_uom ($/KG) to match vendor pricing
     pla = create_test_material(
         db,
-        sku="FIL-PLA-BLK",
+        sku="PLA-BLK-DC",  # Different SKU for this scenario to avoid conflicts
         name="Black PLA Filament",
-        unit="KG",
-        standard_cost=Decimal("25.00")
+        unit="G",
+        purchase_uom="KG",
+        purchase_factor=Decimal("1000"),  # 1 KG = 1000 G
+        standard_cost=Decimal("25.00")    # $/KG
     )
     hardware = create_test_material(
         db,
@@ -399,21 +411,21 @@ def seed_full_demand_chain(db: Session) -> Dict[str, Any]:
         standard_cost=Decimal("35.00")
     )
 
-    # BOM
+    # BOM (filament quantities in grams)
     bom = create_test_bom(db, product, lines=[
-        {"component": pla, "quantity": Decimal("0.25")},       # 0.25 kg per unit
+        {"component": pla, "quantity": Decimal("250")},         # 250g per unit
         {"component": hardware, "quantity": Decimal("4")},      # 4 inserts per unit
         {"component": packaging, "quantity": Decimal("1")},     # 1 box per unit
     ])
 
-    # Inventory (intentionally short)
-    create_test_inventory(db, pla, Decimal("10"))        # Have 10 kg
+    # Inventory (intentionally short, filament in grams)
+    create_test_inventory(db, pla, Decimal("10000"))     # Have 10kg = 10000g
     create_test_inventory(db, hardware, Decimal("150"))  # Have 150 inserts
     create_test_inventory(db, packaging, Decimal("100")) # Have 100 boxes
 
     # Sales order for 50 units
-    # Needs: 12.5 kg PLA, 200 inserts, 50 boxes
-    # Short on: PLA (2.5 kg), inserts (50)
+    # Needs: 12500g PLA, 200 inserts, 50 boxes
+    # Short on: PLA (2500g), inserts (50)
     so = create_test_sales_order(
         db,
         user=customer,
@@ -434,12 +446,13 @@ def seed_full_demand_chain(db: Session) -> Dict[str, Any]:
     )
 
     # Purchase order for shortages
+    # PO is in KG (purchase UOM), inventory converts to G (storage UOM)
     po = create_test_purchase_order(
         db,
         vendor=vendor,
         status="ordered",
         lines=[
-            {"product": pla, "quantity": 5, "unit_cost": Decimal("25.00")},
+            {"product": pla, "quantity": 5, "unit_cost": Decimal("25.00")},  # 5 KG @ $25/KG
             {"product": hardware, "quantity": 100, "unit_cost": Decimal("0.15")},
         ]
     )
@@ -454,7 +467,7 @@ def seed_full_demand_chain(db: Session) -> Dict[str, Any]:
         },
         "vendor": {"id": vendor.id, "code": vendor.code, "name": vendor.name},
         "materials": {
-            "pla": {"id": pla.id, "sku": pla.sku, "on_hand": 10, "needed": 12.5},
+            "pla": {"id": pla.id, "sku": pla.sku, "on_hand": 10000, "needed": 12500},  # grams
             "hardware": {"id": hardware.id, "sku": hardware.sku, "on_hand": 150, "needed": 200},
             "packaging": {"id": packaging.id, "sku": packaging.sku, "on_hand": 100, "needed": 50}
         },
@@ -479,6 +492,9 @@ def seed_so_with_blocking_issues(db: Session) -> Dict[str, Any]:
     customer = db.query(User).filter_by(email="customer@filaops.test").first()
     widget = db.query(Product).filter_by(sku="WIDGET-01").first()
     gadget = db.query(Product).filter_by(sku="GADGET-PRO").first()
+
+    if not customer or not widget or not gadget:
+        raise ValueError("Base scenario data not found. Run seed_basic first.")
 
     # Multi-line sales order using line items
     so = create_test_sales_order(

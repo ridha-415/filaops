@@ -20,6 +20,7 @@ const ITEM_TYPES = [
   { value: "component", label: "Component" },
   { value: "supply", label: "Supply" },
   { value: "service", label: "Service" },
+  { value: "material", label: "Material (Filament)" },
 ];
 
 const PROCUREMENT_TYPES = [
@@ -139,6 +140,17 @@ export default function ItemForm({
       setErrors({});
     }
   }, [isOpen, editingItem, fetchCategories, fetchUomClasses]);
+
+  // Auto-configure material type settings
+  useEffect(() => {
+    if (formData.item_type === 'material' && !editingItem) {
+      setFormData(prev => ({
+        ...prev,
+        unit: 'G',
+        procurement_type: 'buy',
+      }));
+    }
+  }, [formData.item_type, editingItem]);
 
   const validateFormData = () => {
     const validationRules = {
@@ -401,6 +413,11 @@ export default function ItemForm({
                     </option>
                   ))}
                 </select>
+                {formData.item_type === 'material' && (
+                  <p className="text-xs text-blue-400 mt-1">
+                    Materials use: Unit=G (grams), Purchase=KG (kilograms)
+                  </p>
+                )}
                 {errors.item_type && (
                   <div className="text-red-400 text-sm mt-1">
                     {errors.item_type}

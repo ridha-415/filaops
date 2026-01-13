@@ -935,8 +935,8 @@ async def receive_purchase_order(
         # ============================================================================
         # MaterialLot Creation (for traceability)
         # ============================================================================
-        # Create MaterialLot for supply/component items to enable traceability
-        if product.item_type in ('supply', 'component') or product.material_type_id:
+        # Create MaterialLot for supply/component/material items to enable traceability
+        if product.item_type in ('supply', 'component', 'material') or product.material_type_id:
             from sqlalchemy import extract
             year = datetime.utcnow().year
 
@@ -983,11 +983,11 @@ async def receive_purchase_order(
         # Spool Creation (if requested for material products)
         # ============================================================================
         if item.create_spools and item.spools:
-            # Validate product is a material/supply type
-            if product.item_type != 'supply' or not product.material_type_id:
+            # Validate product is a material/supply type with material_type_id
+            if product.item_type not in ('supply', 'material') or not product.material_type_id:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Spool creation only available for material products. {product.sku} is type '{product.item_type}'"
+                    detail=f"Spool creation only available for material products with material_type. {product.sku} is type '{product.item_type}'"
                 )
             
             # Convert received quantity to grams for validation

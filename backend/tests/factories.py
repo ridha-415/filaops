@@ -203,17 +203,21 @@ def create_test_material(
     db: Session,
     sku: Optional[str] = None,
     name: Optional[str] = None,
-    unit: str = "KG",
+    unit: str = "G",
+    purchase_uom: str = "KG",
+    purchase_factor: Decimal = Decimal("1000"),
     **overrides
 ) -> "Product":
     """
-    Create a test raw material (supply item).
+    Create a test raw material (material item).
 
     Args:
         db: Database session
         sku: Material SKU (auto-generated if not provided)
         name: Material name (auto-generated if not provided)
-        unit: Unit of measure (default: KG)
+        unit: Storage/consumption unit (default: G for grams)
+        purchase_uom: Purchase unit from vendor (default: KG)
+        purchase_factor: Conversion factor from purchase_uom to unit (default: 1000)
         **overrides: Additional field overrides
 
     Returns:
@@ -228,10 +232,12 @@ def create_test_material(
         name=name or f"Test Material {seq}",
         description=overrides.pop("description", f"Test material {seq}"),
         unit=unit,
-        item_type="supply",
+        purchase_uom=purchase_uom,
+        purchase_factor=purchase_factor,
+        item_type="material",
         procurement_type="buy",
         is_raw_material=True,
-        standard_cost=overrides.pop("standard_cost", Decimal("20.00")),
+        standard_cost=overrides.pop("standard_cost", Decimal("25.00")),  # $/KG
         active=overrides.pop("active", True),
         **overrides
     )

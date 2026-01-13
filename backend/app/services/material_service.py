@@ -204,12 +204,17 @@ def get_available_colors_for_material(
     
     if in_stock_only:
         # Join to Product and then Inventory to check for available stock
+        # Check for both 'material' (new) and 'supply' (legacy) item types
+        from sqlalchemy import or_
         query = query.join(
             Product,
             and_(
                 Product.material_type_id == material.id,
                 Product.color_id == Color.id,
-                Product.item_type == 'supply',
+                or_(
+                    Product.item_type == 'material',
+                    Product.item_type == 'supply'
+                ),
                 Product.active.is_(True)
             )
         ).join(
@@ -229,10 +234,18 @@ def create_material_product(
     commit: bool = True
 ) -> Product:
     """
-    Creates a 'supply' type Product for a given material and color.
+    Creates a 'material' type Product for a given material and color.
 
     This function is the single source for creating material products, ensuring
     that a corresponding Inventory record is also created.
+
+    UOM Configuration (from centralized config):
+    - unit: G (grams) - storage/consumption unit
+    - purchase_uom: KG (kilograms) - how vendors sell it
+    - purchase_factor: 1000 - conversion factor (1 KG = 1000 G)
+    - is_raw_material: True
+
+    Cost is stored per purchase_uom ($/KG), matching vendor pricing.
 
     Args:
         db: Database session
@@ -243,6 +256,9 @@ def create_material_product(
     Returns:
         The newly created Product object.
     """
+    # Import centralized config
+    from app.core.uom_config import DEFAULT_MATERIAL_UOM
+
     material_type = get_material_type(db, material_type_code)
     color = get_color(db, color_code)
 
@@ -254,17 +270,18 @@ def create_material_product(
     if existing_product:
         return existing_product
 
-    # Create the new product
+    # Create the new product with centralized UOM config
     new_product = Product(
         sku=sku,
         name=f"{material_type.name} - {color.name}",
-        description=f"Filament supply: {material_type.name} in {color.name}",
-        item_type='supply',
+        description=f"Filament material: {material_type.name} in {color.name}",
+        item_type='material',  # Use explicit material type
         procurement_type='buy',
-        unit='G',  # STAR SCHEMA: Materials use grams (G) as storage unit
-        purchase_uom='KG',  # Purchase unit - costs (standard_cost) are $/KG
-        standard_cost=material_type.base_price_per_kg,  # Cost is $/KG (purchase unit)
-        is_raw_material=True,
+        unit=DEFAULT_MATERIAL_UOM.unit,  # G (from config)
+        purchase_uom=DEFAULT_MATERIAL_UOM.purchase_uom,  # KG (from config)
+        purchase_factor=DEFAULT_MATERIAL_UOM.purchase_factor,  # 1000 (from config) - THIS WAS MISSING!
+        standard_cost=material_type.base_price_per_kg,  # Cost is $/KG
+        is_raw_material=DEFAULT_MATERIAL_UOM.is_raw_material,  # True (from config)
         material_type_id=material_type.id,
         color_id=color.id,
         active=True
