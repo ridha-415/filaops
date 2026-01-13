@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ItemForm from "../../components/ItemForm";
 import MaterialForm from "../../components/MaterialForm";
@@ -528,13 +528,30 @@ export default function AdminItems() {
     itemType: "all",
     activeOnly: true,
   });
-  const [quickFilter, setQuickFilter] = useState(null); // null | "all" | "finished_good" | "component" | "filament" | "supply" | "needs_reorder"
+  const [quickFilter, setQuickFilter] = useState(null); // null | "all" | "finished_good" | "component" | "material" | "supply" | "needs_reorder"
 
-  // Pagination state
+  // Sort state - default to stock status (shortage first)
+  const [sortConfig, setSortConfig] = useState({ key: "stock_status", direction: "asc" });
+
+  // Back to top visibility
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const containerRef = useRef(null);
+
+  // Pagination state - use 200 as default to get all items for accurate stats
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 50,
+    pageSize: 200,
     total: 0,
+  });
+
+  // Stats state - stored separately to persist across filter changes
+  const [allItemsStats, setAllItemsStats] = useState({
+    total: 0,
+    finishedGoods: 0,
+    components: 0,
+    supplies: 0,
+    materials: 0,
+    needsReorder: 0,
   });
 
   // Modal states
@@ -656,6 +673,41 @@ export default function AdminItems() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [selectedCategory, filters.itemType, filters.activeOnly]);
 
+  // Calculate stats from items when viewing all items (no type filter, no search, page 1)
+  // This provides accurate counts that persist when clicking filter cards
+  useEffect(() => {
+    // Only update stats when we have unfiltered data
+    if (filters.itemType === "all" && !filters.search && pagination.page === 1 && items.length > 0) {
+      // If we got all items on first page (total <= pageSize), use them directly
+      // Otherwise we need to use pagination.total for the total count
+      const useDirectCount = pagination.total <= pagination.pageSize;
+
+      if (useDirectCount) {
+        // We have all items, calculate everything from them
+        setAllItemsStats({
+          total: items.length,
+          finishedGoods: items.filter((i) => i.item_type === "finished_good").length,
+          components: items.filter((i) => i.item_type === "component").length,
+          supplies: items.filter((i) => i.item_type === "supply").length,
+          materials: items.filter((i) => i.item_type === "material" || i.material_type_id).length,
+          needsReorder: items.filter((i) => i.needs_reorder).length,
+        });
+      } else {
+        // We only have first page, use pagination.total and calculate proportions
+        // For now, just use pagination.total for total, rest from first page sample
+        // This is approximate but better than 0
+        setAllItemsStats({
+          total: pagination.total,
+          finishedGoods: items.filter((i) => i.item_type === "finished_good").length,
+          components: items.filter((i) => i.item_type === "component").length,
+          supplies: items.filter((i) => i.item_type === "supply").length,
+          materials: items.filter((i) => i.item_type === "material" || i.material_type_id).length,
+          needsReorder: items.filter((i) => i.needs_reorder).length,
+        });
+      }
+    }
+  }, [items, filters.itemType, filters.search, pagination.page, pagination.total, pagination.pageSize]);
+
   // Server-side search is now used, so filteredItems is just items
   // For card view, sort by stock status: Shortage -> Out of Stock -> Low Stock -> In Stock
   const getItemStockStatus = (item) => {
@@ -668,6 +720,67 @@ export default function AdminItems() {
     return 3; // In Stock (healthy)
   };
 
+  // Sort function for table view
+  const sortItems = (itemsToSort) => {
+    if (!sortConfig.key) return itemsToSort;
+
+    return [...itemsToSort].sort((a, b) => {
+      let aVal, bVal;
+
+      // Handle stock_status special case (same as card view sorting)
+      if (sortConfig.key === "stock_status") {
+        aVal = getItemStockStatus(a);
+        bVal = getItemStockStatus(b);
+      } else {
+        aVal = a[sortConfig.key];
+        bVal = b[sortConfig.key];
+
+        // Handle null/undefined
+        if (aVal == null) aVal = "";
+        if (bVal == null) bVal = "";
+
+        // Handle numeric fields
+        const numericFields = ["on_hand_qty", "available_qty", "reorder_point", "standard_cost", "selling_price"];
+        if (numericFields.includes(sortConfig.key)) {
+          aVal = parseFloat(aVal) || 0;
+          bVal = parseFloat(bVal) || 0;
+        }
+
+        // Handle boolean fields
+        if (sortConfig.key === "active" || sortConfig.key === "needs_reorder") {
+          aVal = aVal ? 1 : 0;
+          bVal = bVal ? 1 : 0;
+        }
+      }
+
+      // Compare
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  };
+
+  // Handle column header click
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  // Sort indicator component
+  const SortIndicator = ({ columnKey }) => {
+    // stock_status is shown in multiple columns but not clickable directly
+    if (sortConfig.key !== columnKey && !(sortConfig.key === "stock_status" && columnKey === "available_qty")) {
+      return <span className="text-gray-600 ml-1">↕</span>;
+    }
+    return (
+      <span className="text-blue-400 ml-1">
+        {sortConfig.direction === "asc" ? "↑" : "↓"}
+      </span>
+    );
+  };
+
   // Apply quick filter for needs_reorder (client-side since it's a flag)
   let baseItems = items;
   if (quickFilter === "needs_reorder") {
@@ -676,7 +789,20 @@ export default function AdminItems() {
 
   const filteredItems = viewMode === "cards"
     ? [...baseItems].sort((a, b) => getItemStockStatus(a) - getItemStockStatus(b))
-    : baseItems;
+    : sortItems(baseItems);
+
+  // Back to top scroll handler
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 400);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Debounced search - trigger fetch when search changes
   useEffect(() => {
@@ -736,17 +862,8 @@ export default function AdminItems() {
     }
   };
 
-  // Stats calculations
-  const stats = {
-    total: items.length,
-    finishedGoods: items.filter((i) => i.item_type === "finished_good").length,
-    components: items.filter((i) => i.item_type === "component").length,
-    supplies: items.filter(
-      (i) => i.item_type === "supply" && !i.material_type_id
-    ).length,
-    filaments: items.filter((i) => i.material_type_id).length,
-    needsReorder: items.filter((i) => i.needs_reorder).length,
-  };
+  // Use the persisted stats (not recalculated from filtered items)
+  const stats = allItemsStats;
 
   const getItemTypeStyle = (type, hasFilament = false) => {
     // If item has material_type_id, treat as filament regardless of item_type
@@ -1217,15 +1334,15 @@ export default function AdminItems() {
           />
           <StatCard
             variant="simple"
-            title="Filaments"
-            value={stats.filaments}
+            title="Materials"
+            value={stats.materials}
             color="primary"
             onClick={() => {
-              const isActive = quickFilter === "filament";
-              setQuickFilter(isActive ? null : "filament");
+              const isActive = quickFilter === "material";
+              setQuickFilter(isActive ? null : "material");
               setFilters({ ...filters, itemType: isActive ? "all" : "material" });
             }}
-            active={quickFilter === "filament"}
+            active={quickFilter === "material"}
           />
           <StatCard
             variant="simple"
@@ -1338,35 +1455,74 @@ export default function AdminItems() {
                       className="rounded"
                     />
                   </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    SKU
+                  <th
+                    className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("sku")}
+                  >
+                    SKU <SortIndicator columnKey="sku" />
                   </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Name
+                  <th
+                    className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("name")}
+                  >
+                    Name <SortIndicator columnKey="name" />
                   </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Type
+                  <th
+                    className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("item_type")}
+                  >
+                    Type <SortIndicator columnKey="item_type" />
                   </th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Category
+                  <th
+                    className="text-left py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("category_name")}
+                  >
+                    Category <SortIndicator columnKey="category_name" />
                   </th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Std Cost
+                  <th
+                    className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("standard_cost")}
+                  >
+                    Std Cost <SortIndicator columnKey="standard_cost" />
                   </th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Price
+                  <th
+                    className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("selling_price")}
+                  >
+                    Price <SortIndicator columnKey="selling_price" />
                   </th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    On Hand
+                  <th
+                    className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("on_hand_qty")}
+                  >
+                    On Hand <SortIndicator columnKey="on_hand_qty" />
                   </th>
                   <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
                     Reserved
                   </th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Available
+                  <th
+                    className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("available_qty")}
+                  >
+                    Available <SortIndicator columnKey="available_qty" />
                   </th>
-                  <th className="text-center py-3 px-4 text-xs font-medium text-gray-400 uppercase">
-                    Status
+                  <th
+                    className="text-center py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("stocking_policy")}
+                  >
+                    Policy <SortIndicator columnKey="stocking_policy" />
+                  </th>
+                  <th
+                    className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("reorder_point")}
+                  >
+                    Reorder Pt <SortIndicator columnKey="reorder_point" />
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-xs font-medium text-gray-400 uppercase cursor-pointer hover:text-white select-none"
+                    onClick={() => handleSort("active")}
+                  >
+                    Status <SortIndicator columnKey="active" />
                   </th>
                   <th className="text-right py-3 px-4 text-xs font-medium text-gray-400 uppercase">
                     Actions
@@ -1563,6 +1719,29 @@ export default function AdminItems() {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span
+                        className={`px-2 py-0.5 rounded text-xs ${
+                          item.stocking_policy === "stocked"
+                            ? "bg-purple-500/20 text-purple-400"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {item.stocking_policy === "stocked" ? "Stocked" : "MRP"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right text-gray-400">
+                      {item.stocking_policy === "stocked" && item.reorder_point != null ? (
+                        <>
+                          {parseFloat(item.reorder_point).toLocaleString()}
+                          <span className="text-gray-500 text-xs ml-1">
+                            {item.material_type_id ? "g" : (item.unit || "EA")}
+                          </span>
+                        </>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span
                         className={`px-2 py-1 rounded-full text-xs ${
                           item.active
                             ? "bg-green-500/20 text-green-400"
@@ -1612,7 +1791,7 @@ export default function AdminItems() {
                 {filteredItems.length === 0 && (
                   <tr>
                     <td
-                      colSpan={12}
+                      colSpan={14}
                       className="py-12 text-center text-gray-500"
                     >
                       No items found
@@ -1854,6 +2033,19 @@ export default function AdminItems() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Back to Top Button */}
+      {showBackToTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-full shadow-lg transition-all hover:scale-110"
+          title="Back to top"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        </button>
       )}
     </div>
   );
