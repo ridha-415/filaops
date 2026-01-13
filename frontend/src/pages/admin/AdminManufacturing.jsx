@@ -42,14 +42,12 @@ export default function AdminManufacturing() {
 
   const token = localStorage.getItem("adminToken");
 
+  // Fetch both on initial mount so tab badges show correct counts
   useEffect(() => {
-    if (activeTab === "work-centers") {
-      fetchWorkCenters();
-    } else {
-      fetchRoutings();
-      fetchProducts();
-    }
-  }, [activeTab]);
+    fetchWorkCenters();
+    fetchRoutings();
+    fetchProducts();
+  }, []);
 
   const fetchWorkCenters = async () => {
     setLoading(true);
