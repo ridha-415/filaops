@@ -35,10 +35,6 @@ from app.models.catalog import Catalog, CatalogProduct, CustomerCatalog
 from app.models.accounting import GLAccount, GLFiscalPeriod, GLJournalEntry, GLJournalEntryLine
 from app.models.entity_member import EntityMember
 from app.models.user_customer_access import UserCustomerAccess
-from app.models.portal_access_request import PortalAccessRequest
-from app.models.shopify_config import ShopifyConfig
-from app.models.shopify_product_mapping import ShopifyProductMapping
-from app.models.shopify_webhook_log import ShopifyWebhookLog
 from app.models.production_order import ScrapRecord
 # from app.models.license import License  # Disabled until ready for production
 
@@ -126,11 +122,6 @@ __all__ = [
     # Entity Members
     "EntityMember",
     "UserCustomerAccess",
-    "PortalAccessRequest",
-    # Shopify Integration
-    "ShopifyConfig",
-    "ShopifyProductMapping",
-    "ShopifyWebhookLog",
     # Scrap
     "ScrapRecord",
     # License (disabled until ready)
